@@ -19,7 +19,7 @@ setup(
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://nodeconductor.com',
-    description='Plugin for interaction and management of Atlassian Jira',
+    description='Plugin for interaction and management of Atlassian JIRA',
     long_description=open('README.rst').read(),
     package_dir={'': 'src'},
     packages=find_packages('src', exclude=['*.tests', '*.tests.*', 'tests.*', 'tests']),

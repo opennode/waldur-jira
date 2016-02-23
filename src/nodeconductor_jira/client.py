@@ -5,7 +5,7 @@ from .backend import JiraBackend, JiraBackendError
 
 
 class SupportClient(object):
-    """ NodeConductor support client via Jira backend """
+    """ NodeConductor support client via JIRA backend """
 
     ISSUE_TYPE = 'Support Request'
     REPORTER_FIELD = 'Original Reporter'

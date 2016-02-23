@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# NodeConductor Jira documentation build configuration file.
+# NodeConductor JIRA documentation build configuration file.
 #
 # This file is execfile()d with the current directory set to its
 # containing dir.
@@ -43,7 +43,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'NodeConductor Jira'
+project = u'NodeConductor JIRA'
 copyright = u'2015, OpenNode'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -199,7 +199,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'nodeconductor-jira.tex', u'NodeConductor Jira Documentation',
+  ('index', 'nodeconductor-jira.tex', u'NodeConductor JIRA Documentation',
    u'OpenNode', 'manual'),
 ]
 
@@ -229,7 +229,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'nodeconductor-jira', u'NodeConductor Jira Documentation',
+    ('index', 'nodeconductor-jira', u'NodeConductor JIRA Documentation',
      [u'OpenNode'], 1)
 ]
 
@@ -243,7 +243,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'NodeConductor Jira', u'NodeConductor Jira Documentation',
+  ('index', 'NodeConductor JIRA', u'NodeConductor JIRA Documentation',
    u'OpenNode', 'nodeconductor-jira', 'One line description of project.',
    'Miscellaneous'),
 ]

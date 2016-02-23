@@ -3,7 +3,7 @@ from django.apps import AppConfig
 
 class JiraConfig(AppConfig):
     name = 'nodeconductor_jira'
-    verbose_name = 'Jira'
+    verbose_name = 'JIRA'
 
     def ready(self):
         pass
