@@ -1,5 +1,5 @@
 Name: nodeconductor-jira
-Summary: Jira plugin for NodeConductor
+Summary: JIRA plugin for NodeConductor
 Group: Development/Libraries
 Version: 0.1.0
 Release: 1.el7
@@ -16,7 +16,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildRequires: python-setuptools
 
 %description
-Plugin for interaction with and management of Atlassian Jira.
+Plugin for interaction with and management of Atlassian JIRA.
 
 %prep
 %setup -q -n %{name}-%{version}
