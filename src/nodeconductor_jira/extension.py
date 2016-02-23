@@ -6,7 +6,7 @@ from nodeconductor.core import NodeConductorExtension
 class JiraExtension(NodeConductorExtension):
 
     class Settings:
-        # Jira admin account credentials
+        # JIRA admin account credentials
         NODECONDUCTOR_JIRA = {
          'username': 'admin',
          'password': 'secret',

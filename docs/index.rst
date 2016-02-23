@@ -1,7 +1,7 @@
-Welcome to NodeConductor Jira plugin's documentation!
+Welcome to NodeConductor JIRA plugin's documentation!
 ================================================================
 
-Plugin for interaction and management of Atlassian Jira.
+Plugin for interaction and management of Atlassian JIRA.
 
 Guide
 -----
@@ -22,7 +22,7 @@ API
 License
 -------
 
-NodeConductor Jira plugin is open-source under Apache v2 license.
+NodeConductor JIRA plugin is open-source under Apache v2 license.
 
 
 Indices and tables

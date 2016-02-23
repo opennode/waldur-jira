@@ -1,4 +1,4 @@
-NodeConductor Jira
+NodeConductor JIRA
 ===============================
 
-Plugin for interaction and management of Atlassian Jira.
+Plugin for interaction and management of Atlassian JIRA.
