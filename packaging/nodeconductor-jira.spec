@@ -16,7 +16,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildRequires: python-setuptools
 
 %description
-Plugin for interaction and management of Atlassian Jira.
+Plugin for interaction with and management of Atlassian Jira.
 
 %prep
 %setup -q -n %{name}-%{version}
@@ -33,4 +33,3 @@ rm -rf %{buildroot}
 
 %files -f INSTALLED_FILES
 %defattr(-,root,root)
-
