@@ -1,7 +1,7 @@
 Welcome to NodeConductor Jira plugin's documentation!
 ================================================================
 
-NodeConductor SaltStack allows to
+Plugin for interaction and management of Atlassian Jira.
 
 Guide
 -----
