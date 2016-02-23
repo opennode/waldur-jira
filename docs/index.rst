@@ -1,0 +1,33 @@
+Welcome to NodeConductor JIRA plugin's documentation!
+================================================================
+
+Plugin for interaction and management of Atlassian JIRA.
+
+Guide
+-----
+
+.. toctree::
+   :maxdepth: 1
+
+   installation
+
+API
+---
+
+.. toctree::
+   :maxdepth: 1
+
+   api
+
+License
+-------
+
+NodeConductor JIRA plugin is open-source under Apache v2 license.
+
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`search`
+
