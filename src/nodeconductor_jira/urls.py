@@ -1,8 +1,9 @@
-from __future__ import unicode_literals
-
 from . import views
 
 
 def register_in(router):
-    router.register(r'issues', views.IssueViewSet, base_name='issue')
-    router.register(r'issues/(?P<pk>[A-Z0-9_-]+)/comments', views.CommentViewSet, base_name='issue-comments')
+    router.register(r'jira', views.JiraServiceViewSet, base_name='jira')
+    router.register(r'jira-service-project-link', views.JiraServiceProjectLinkViewSet, base_name='jira-spl')
+    router.register(r'jira-projects', views.ProjectViewSet, base_name='jira-projects')
+    router.register(r'jira-issues', views.IssueViewSet, base_name='jira-issues')
+    router.register(r'jira-comments', views.CommentViewSet, base_name='jira-comments')

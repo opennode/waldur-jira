@@ -1,10 +1,33 @@
-from __future__ import unicode_literals
-
 from rest_framework import viewsets, mixins, exceptions
 
-from .client import SupportClient, JiraBackendError
+from nodeconductor.structure import views as structure_views
+
+from .backend import JiraBackendError
 from .filters import IssueSearchFilter
-from .serializers import IssueSerializer, CommentSerializer
+from . import models, serializers
+
+
+class JiraServiceViewSet(structure_views.BaseServiceViewSet):
+    queryset = models.JiraService.objects.all()
+    serializer_class = serializers.ServiceSerializer
+    import_serializer_class = serializers.ProjectImportSerializer
+
+
+class JiraServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
+    queryset = models.JiraServiceProjectLink.objects.all()
+    serializer_class = serializers.ServiceProjectLinkSerializer
+
+
+class ProjectViewSet(structure_views.BaseOnlineResourceViewSet):
+    queryset = models.Project.objects.all()
+    serializer_class = serializers.ProjectSerializer
+    # XXX: Ignore errors with new resource models (NC-1237)
+    filter_class = None
+
+    def perform_provision(self, serializer):
+        resource = serializer.save()
+        backend = resource.get_backend()
+        backend.provision(resource)
 
 
 class SupportMixin(object):
@@ -17,7 +40,7 @@ class SupportMixin(object):
 
 class IssueViewSet(SupportMixin, mixins.RetrieveModelMixin, mixins.ListModelMixin,
                    mixins.CreateModelMixin, viewsets.GenericViewSet):
-    serializer_class = IssueSerializer
+    serializer_class = serializers.IssueSerializer
     filter_backends = (IssueSearchFilter,)
 
     def get_queryset(self):
@@ -39,7 +62,7 @@ class IssueViewSet(SupportMixin, mixins.RetrieveModelMixin, mixins.ListModelMixi
 class CommentViewSet(SupportMixin, mixins.ListModelMixin,
                      mixins.CreateModelMixin, viewsets.GenericViewSet):
 
-    serializer_class = CommentSerializer
+    serializer_class = serializers.CommentSerializer
 
     def get_queryset(self):
         try:
