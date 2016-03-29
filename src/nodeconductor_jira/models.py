@@ -1,4 +1,6 @@
 from django.db import models
+from django.conf import settings
+from django.utils.encoding import python_2_unicode_compatible
 from model_utils.models import TimeStampedModel
 
 from nodeconductor.core import models as core_models
@@ -40,13 +42,12 @@ class Project(core_models.StateMixin, structure_models.ResourceMixin):
         return 'jira-projects'
 
 
-class Issue(core_models.UuidMixin, TimeStampedModel):
+@python_2_unicode_compatible
+class Issue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL)
     project = models.ForeignKey(Project, related_name='issues')
     summary = models.CharField(max_length=255)
-    assignee = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    resolution = models.CharField(max_length=255)
-    status = models.CharField(max_length=255)
     backend_id = models.CharField(max_length=255)
 
     def get_backend(self):
@@ -56,10 +57,14 @@ class Issue(core_models.UuidMixin, TimeStampedModel):
     def get_url_name(cls):
         return 'jira-issues'
 
+    def __str__(self):
+        return '{}: {}'.format(self.backend_id or '???', self.summary)
 
-class Comment(core_models.UuidMixin, TimeStampedModel):
+
+@python_2_unicode_compatible
+class Comment(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL)
     issue = models.ForeignKey(Issue, related_name='comments')
-    author = models.CharField(max_length=255)
     message = models.TextField(blank=True)
     backend_id = models.CharField(max_length=255)
 
@@ -69,3 +74,6 @@ class Comment(core_models.UuidMixin, TimeStampedModel):
     @classmethod
     def get_url_name(cls):
         return 'jira-comments'
+
+    def __str__(self):
+        return '{}: {}'.format(self.issue.backend_id or '???', self.message)

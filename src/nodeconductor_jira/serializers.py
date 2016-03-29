@@ -2,6 +2,7 @@ import re
 
 from rest_framework import serializers
 
+from nodeconductor.core.serializers import AugmentedSerializerMixin
 from nodeconductor.structure import serializers as structure_serializers
 
 from .backend import JiraBackendError
@@ -11,8 +12,8 @@ from . import models
 class ServiceSerializer(structure_serializers.BaseServiceSerializer):
 
     SERVICE_ACCOUNT_FIELDS = {
-        'backend_url': '',
-        'username': '',
+        'backend_url': 'JIRA host (e.g. https://jira.example.com/)',
+        'username': 'JIRA user with excessive privileges',
         'password': '',
     }
 
@@ -75,87 +76,47 @@ class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer
         return super(ProjectImportSerializer, self).create(validated_data)
 
 
-class UserSerializer(serializers.Serializer):
-    displayName = serializers.CharField()
-    emailAddress = serializers.EmailField()
+class IssueSerializer(AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+    state = serializers.ReadOnlyField(source='get_state_display')
+
+    class Meta(object):
+        model = models.Issue
+        view_name = 'jira-issues-detail'
+        fields = (
+            'url', 'uuid', 'user', 'user_uuid', 'project', 'project_uuid', 'project_name',
+            'summary', 'description', 'backend_id', 'state'
+        )
+        read_only_fields = 'uuid', 'user', 'backend_id'
+        protected_fields = 'project',
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'jira-projects-detail'},
+        }
+        related_paths = {
+            'user': ('uuid',),
+            'project': ('uuid', 'name')
+        }
 
 
-class IssueSerializer(serializers.Serializer):
-    url = serializers.HyperlinkedIdentityField(view_name='issue-detail')
-    key = serializers.ReadOnlyField()
-    summary = serializers.CharField()
-    description = serializers.CharField(required=False, style={'base_template': 'textarea.html'})
-    assignee = UserSerializer(read_only=True)
-    created = serializers.DateTimeField(read_only=True)
-    comments = serializers.HyperlinkedIdentityField(view_name='issue-comments-list')
-    status = serializers.CharField(source='status.name', read_only=True)
-    resolution = serializers.CharField(source='resolution.name', read_only=True)
+class CommentSerializer(AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+    state = serializers.ReadOnlyField(source='get_state_display')
 
-    def save(self, client, reporter):
-        self.client = client
-        self.reporter = reporter
-        return super(IssueSerializer, self).save()
-
-    def create(self, validated_data):
-        return self.client.issues.create(
-            validated_data.get('summary'),
-            validated_data.get('description'),
-            reporter=self.reporter)
-
-    def to_representation(self, obj):
-        obj.pk = obj.key
-        for field in self.fields:
-            if hasattr(obj.fields, field):
-                setattr(obj, field, getattr(obj.fields, field))
-
-        return super(IssueSerializer, self).to_representation(obj)
-
-
-class CommentSerializer(serializers.Serializer):
-    author = UserSerializer(read_only=True)
-    created = serializers.DateTimeField(read_only=True)
-    body = serializers.CharField()
-
-    AUTHOR_RE = re.compile("Comment posted by user ([\w.@+-]+) \(([0-9a-z]{32})\)")
-    AUTHOR_TEMPLATE = "Comment posted by user {username} ({uuid})\n{body}"
-
-    def save(self, client, issue):
-        self.client = client
-        self.issue = issue
-        return super(CommentSerializer, self).save()
-
-    def create(self, validated_data):
-        return self.client.comments.create(self.issue, self.serialize_body())
-
-    def to_representation(self, obj):
-        """
-        Try to extract injected author information.
-        Use original author otherwise.
-        """
-        data = super(CommentSerializer, self).to_representation(obj)
-        author, body = self.parse_body(data['body'])
-        data['author'] = author or data['author']
-        data['body'] = body
-        return data
-
-    def serialize_body(self):
-        """
-        Inject author's name and UUID into comment's body
-        """
-        body = self.validated_data['body']
-        user = self.context['request'].user
-        return self.AUTHOR_TEMPLATE.format(username=user.username, uuid=user.uuid.hex, body=body)
-
-    def parse_body(self, body):
-        """
-        Extract author's name and UUID from comment's body
-        """
-        match = re.match(self.AUTHOR_RE, body)
-        if match:
-            username = match.group(1)
-            uuid = match.group(2)
-            body = body[match.end(2) + 2:]
-            author = {'displayName': username, 'uuid': uuid}
-            return author, body
-        else:
-            return None, body
+    class Meta(object):
+        model = models.Comment
+        view_name = 'jira-comments-detail'
+        fields = (
+            'url', 'uuid', 'user', 'user_uuid', 'issue', 'issue_uuid',
+            'issue_backend_id', 'message', 'state'
+        )
+        read_only_fields = 'uuid', 'user', 'backend_id'
+        protected_fields = 'issue',
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            'issue': {'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
+        }
+        related_paths = {
+            'user': ('uuid',),
+            'issue': ('uuid', 'backend_id')
+        }
