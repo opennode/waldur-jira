@@ -76,47 +76,63 @@ class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer
         return super(ProjectImportSerializer, self).create(validated_data)
 
 
-class IssueSerializer(AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+class JiraPropertySerializer(AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
 
     class Meta(object):
+        model = NotImplemented
+        view_name = NotImplemented
+        fields = (
+            'url', 'uuid', 'user', 'user_uuid', 'backend_id', 'state'
+        )
+        read_only_fields = 'uuid', 'user', 'backend_id'
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+        }
+        related_paths = {
+            'user': ('uuid',),
+        }
+
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super(JiraPropertySerializer, self).create(validated_data)
+
+
+class IssueSerializer(JiraPropertySerializer):
+
+    class Meta(JiraPropertySerializer.Meta):
         model = models.Issue
         view_name = 'jira-issues-detail'
-        fields = (
-            'url', 'uuid', 'user', 'user_uuid', 'project', 'project_uuid', 'project_name',
-            'summary', 'description', 'backend_id', 'state'
+        fields = JiraPropertySerializer.Meta.fields + (
+            'project', 'project_uuid', 'project_name',
+            'summary', 'description',
         )
-        read_only_fields = 'uuid', 'user', 'backend_id'
         protected_fields = 'project',
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
-            'project': {'lookup_field': 'uuid', 'view_name': 'jira-projects-detail'},
-        }
-        related_paths = {
-            'user': ('uuid',),
-            'project': ('uuid', 'name')
-        }
+        extra_kwargs = dict(
+            project={'lookup_field': 'uuid', 'view_name': 'jira-projects-detail'},
+            **JiraPropertySerializer.Meta.extra_kwargs
+        )
+        related_paths = dict(
+            project=('uuid', 'name'),
+            **JiraPropertySerializer.Meta.related_paths
+        )
 
 
-class CommentSerializer(AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
-    state = serializers.ReadOnlyField(source='get_state_display')
+class CommentSerializer(JiraPropertySerializer):
 
-    class Meta(object):
+    class Meta(JiraPropertySerializer.Meta):
         model = models.Comment
         view_name = 'jira-comments-detail'
-        fields = (
-            'url', 'uuid', 'user', 'user_uuid', 'issue', 'issue_uuid',
-            'issue_backend_id', 'message', 'state'
+        fields = JiraPropertySerializer.Meta.fields + (
+            'issue', 'issue_uuid', 'issue_backend_id', 'message'
         )
-        read_only_fields = 'uuid', 'user', 'backend_id'
         protected_fields = 'issue',
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
-            'issue': {'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
-        }
-        related_paths = {
-            'user': ('uuid',),
-            'issue': ('uuid', 'backend_id')
-        }
+        extra_kwargs = dict(
+            issue={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
+            **JiraPropertySerializer.Meta.extra_kwargs
+        )
+        related_paths = dict(
+            issue=('uuid', 'backend_id'),
+            **JiraPropertySerializer.Meta.related_paths
+        )

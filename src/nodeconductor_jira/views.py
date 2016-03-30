@@ -27,25 +27,19 @@ class ProjectViewSet(structure_views.BaseResourceExecutorViewSet):
     delete_executor = executors.ProjectDeleteExecutor
 
 
-class JiraPropertyViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
-    filter_backends = filters.DjangoFilterBackend, core_filters.StaffOrUserFilter
-
-    def perform_create(self, serializer):
-        instance = serializer.save(user=serializer.context['request'].user)
-        self.create_executor.execute(instance)
-
-
-class IssueViewSet(JiraPropertyViewSet):
+class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     queryset = models.Issue.objects.all()
     filter_class = IssueFilter
+    filter_backends = filters.DjangoFilterBackend, core_filters.StaffOrUserFilter
     serializer_class = serializers.IssueSerializer
     create_executor = executors.IssueCreateExecutor
     update_executor = executors.IssueUpdateExecutor
     delete_executor = executors.IssueDeleteExecutor
 
 
-class CommentViewSet(JiraPropertyViewSet):
+class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     queryset = models.Comment.objects.all()
+    filter_backends = filters.DjangoFilterBackend, core_filters.StaffOrUserFilter
     serializer_class = serializers.CommentSerializer
     create_executor = executors.CommentCreateExecutor
     update_executor = executors.CommentUpdateExecutor
