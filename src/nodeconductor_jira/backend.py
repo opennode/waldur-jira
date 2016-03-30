@@ -38,12 +38,6 @@ class JiraBaseBackend(ServiceBackend):
         else:
             return True
 
-    def provision(self, resource, **kwargs):
-        executors.ProjectCreateExecutor.execute(resource)
-
-    def destroy(self, resource, force=False):
-        executors.ProjectDeleteExecutor.execute(resource, force=force)
-
     def get_resources_for_import(self):
         return [{
             'name': proj.name,
