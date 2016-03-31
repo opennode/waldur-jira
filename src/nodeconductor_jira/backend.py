@@ -1,13 +1,12 @@
-from __future__ import unicode_literals
-
-import re
 import logging
+import functools
 
 from jira import JIRA, JIRAError
 
 from django.utils import six
 
 from nodeconductor.structure import ServiceBackend, ServiceBackendError
+from . import executors
 
 
 logger = logging.getLogger(__name__)
@@ -19,164 +18,116 @@ class JiraBackendError(ServiceBackendError):
 
 class JiraBaseBackend(ServiceBackend):
 
-    def __init__(self, settings, core_project=None, reporter_field=None, default_issue_type='Task'):
+    def __init__(self, settings, project=None, reporter_field=None, default_issue_type='Task', verify=False):
         self.settings = settings
-        self.core_project = core_project
+        self.project = project
         self.reporter_field = reporter_field
         self.default_issue_type = default_issue_type
+        self.verify = verify
 
-        self.jira = JIRA(
-            server=settings.backend_url,
-            options={'verify': False},
-            basic_auth=(settings.username, settings.password),
-            validate=False)
+    def sync(self):
+        self.ping(raise_exception=True)
 
-        if self.reporter_field:
-            try:
-                self.reporter_field_id = next(
-                    f['id'] for f in self.jira.fields() if self.reporter_field in f['clauseNames'])
-            except StopIteration:
-                raise JiraBackendError("Can't custom field %s" % self.reporter_field)
+    def ping(self, raise_exception=False):
+        try:
+            self.manager.myself()
+        except JIRAError as e:
+            if raise_exception:
+                six.reraise(JiraBackendError, e)
+            return False
+        else:
+            return True
+
+    def get_resources_for_import(self):
+        return [{
+            'name': proj.name,
+            'backend_id': proj.key,
+        } for proj in self.manager.projects()]
 
 
 class JiraBackend(JiraBaseBackend):
-    """ NodeConductor interface to JIRA """
+    """ NodeConductor interface to JIRA.
+        http://pythonhosted.org/jira/
+        http://docs.atlassian.com/jira/REST/latest/
+    """
 
-    class Resource(object):
-        """ Generic JIRA resource """
+    @property
+    def manager(self):
+        if not hasattr(self, '_manager'):
+            self._manager = JIRA(
+                server=self.settings.backend_url,
+                options={'verify': self.verify},
+                basic_auth=(self.settings.username, self.settings.password),
+                validate=False)
 
-        def __init__(self, manager):
-            self.manager = manager
-
-    class Issue(Resource):
-        """ JIRA issues resource """
-
-        class IssueQuerySet(object):
-            """ Issues queryset acceptable by django paginator """
-
-            def filter(self, term):
-                if term:
-                    escaped_term = re.sub(r'([\^~*?\\:\(\)\[\]\{\}|!#&"+-])', r'\\\\\1', term)
-                    self.query_string = self.base_query_string + ' AND text ~ "%s"' % escaped_term
-                return self
-
-            def _fetch_items(self, offset=0, limit=1, force=False):
-                # Default limit is 1 because this extra query required
-                # only to determine the total number of items
-                if hasattr(self, 'items') and not force:
-                    return self.items
-
+            if self.reporter_field:
                 try:
-                    self.items = self.query_func(
-                        self.query_string,
-                        fields=self.fields,
-                        startAt=offset,
-                        maxResults=limit)
-                except JIRAError as e:
-                    logger.exception(
-                        'Failed to perform issues search with query "%s"', self.query_string)
-                    six.reraise(JiraBackendError, e)
+                    self.reporter_field_id = next(
+                        f['id'] for f in self.manager.fields() if self.reporter_field in f['clauseNames'])
+                except StopIteration:
+                    raise JiraBackendError("Can't find custom field %s" % self.reporter_field)
 
-                return self.items
+        return self._manager
 
-            def __init__(self, jira, query_string, fields=None):
-                self.fields = fields
-                self.query_func = jira.search_issues
-                self.query_string = self.base_query_string = query_string
-
-            def __len__(self):
-                return self._fetch_items().total
-
-            def __iter__(self):
-                return self._fetch_items()
-
-            def __getitem__(self, val):
-                return self._fetch_items(offset=val.start, limit=val.stop - val.start, force=True)
-
-        def create(self, summary, description='', reporter='', assignee=None):
-            args = {
-                'summary': summary,
-                'description': description,
-                'project': {'key': self.manager.core_project},
-                'issuetype': {'name': self.manager.default_issue_type},
-            }
-
-            # Validate reporter & assignee before actual issue creation
-            if assignee:
-                assignee = self.manager.users.get(assignee)
-            if self.manager.reporter_field:
-                args[self.manager.reporter_field_id] = reporter
-            elif reporter:
-                reporter = self.manager.users.get(reporter)
-
+    def reraise_exceptions(func):
+        @functools.wraps(func)
+        def wrapped(self, *args, **kwargs):
             try:
-                issue = self.manager.jira.create_issue(fields=args)
-
-                if reporter and not self.manager.reporter_field:
-                    issue.update(reporter={'name': reporter.name})
-                if assignee:
-                    self.manager.jira.assign_issue(issue, assignee.key)
-
+                return func(self, *args, **kwargs)
             except JIRAError as e:
-                logger.exception('Failed to create issue with summary "%s"', summary)
                 six.reraise(JiraBackendError, e)
+        return wrapped
 
-            return issue
+    @reraise_exceptions
+    def create_project(self, project):
+        self.manager.create_project(project.backend_id, name=project.name, assignee=self.settings.username)
 
-        def get_by_user(self, username, user_key):
-            try:
-                issue = self.manager.jira.issue(user_key)
-            except JIRAError:
-                raise JiraBackendError("Can't find issue %s" % user_key)
+    @reraise_exceptions
+    def update_project(self, project):
+        backend_project = self.manager.project(project.backend_id)
+        backend_project.update(name=project.name)
 
-            if self.manager.reporter_field:
-                is_owner = getattr(issue.fields, self.manager.reporter_field_id) == username
-            else:
-                reporter = self.manager.users.get(username)
-                is_owner = issue.fields.reporter.key == reporter.key
+    @reraise_exceptions
+    def delete_project(self, project):
+        self.manager.delete_project(project.backend_id)
 
-            if not is_owner:
-                raise JiraBackendError("Access denied to issue %s for user %s" % (user_key, username))
+    @reraise_exceptions
+    def create_issue(self, issue):
+        args = dict(
+            project=issue.project.backend_id,
+            summary=issue.summary,
+            description=issue.description,
+            issuetype={'name': self.default_issue_type},
+        )
+        jira = self.manager  # XXX: init manager before accessing reporter_field_id
+        if self.reporter_field:
+            args[self.reporter_field_id] = issue.user.uuid.hex
 
-            return issue
+        backend_issue = jira.create_issue(**args)
+        issue.backend_id = backend_issue.key
+        issue.save(update_fields=['backend_id'])
 
-        def list_by_user(self, username):
-            if self.manager.reporter_field:
-                query_string = "project = {} AND '{}' ~ '{}'".format(
-                    self.manager.core_project, self.manager.reporter_field, username)
-            else:
-                query_string = "project = {} AND reporter = {}".format(
-                    self.manager.core_project, username)
-            query_string += " order by updated desc"
+    @reraise_exceptions
+    def update_issue(self, issue):
+        backend_issue = self.manager.issue(issue.backend_id)
+        backend_issue.update(summary=issue.summary, description=issue.description)
 
-            return self.IssueQuerySet(self.manager.jira, query_string)
+    @reraise_exceptions
+    def delete_issue(self, issue):
+        self.manager.delete_issue(issue.backend_id)
 
-    class Comment(Resource):
-        """ JIRA issue comments resource """
+    @reraise_exceptions
+    def create_comment(self, comment):
+        backend_comment = self.manager.add_comment(comment.issue.backend_id, comment.message)
+        comment.backend_id = backend_comment.id
+        comment.save(update_fields=['backend_id'])
 
-        def list(self, issue_key):
-            try:
-                return self.manager.jira.comments(issue_key)
-            except JIRAError as e:
-                logger.exception(
-                    'Failed to perform comments search for issue %s', issue_key)
-                six.reraise(JiraBackendError, e)
+    @reraise_exceptions
+    def update_comment(self, comment):
+        backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
+        backend_comment.update(body=comment.message)
 
-        def create(self, issue_key, comment):
-            return self.manager.jira.add_comment(issue_key, comment)
-
-    class User(Resource):
-        """ JIRA users resource """
-
-        def get(self, username):
-            try:
-                return self.manager.jira.user(username)
-            except JIRAError:
-                raise JiraBackendError("Unknown JIRA user %s" % username)
-
-    def __init__(self, *args, **kwargs):
-        super(JiraBackend, self).__init__(*args, **kwargs)
-
-        self.users = self.User(self)
-        self.issues = self.Issue(self)
-        self.comments = self.Comment(self)
+    @reraise_exceptions
+    def delete_comment(self, comment):
+        backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
+        backend_comment.delete()
