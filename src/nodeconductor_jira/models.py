@@ -37,6 +37,9 @@ class Project(core_models.StateMixin, structure_models.ResourceMixin):
             reporter_field=self.reporter_field,
             default_issue_type=self.default_issue_type)
 
+    def get_access_url(self):
+        return self.service_project_link.service.settings.backend_url + 'projects/' + self.backend_id
+
     @classmethod
     def get_url_name(cls):
         return 'jira-projects'
@@ -44,10 +47,12 @@ class Project(core_models.StateMixin, structure_models.ResourceMixin):
 
 @python_2_unicode_compatible
 class Issue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
     project = models.ForeignKey(Project, related_name='issues')
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    resolution = models.CharField(max_length=255)
+    status = models.CharField(max_length=255)
     backend_id = models.CharField(max_length=255)
 
     def get_backend(self):
@@ -57,13 +62,16 @@ class Issue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
     def get_url_name(cls):
         return 'jira-issues'
 
+    def get_access_url(self):
+        return self.project.service_project_link.service.settings.backend_url + 'browse/' + self.backend_id
+
     def __str__(self):
         return '{}: {}'.format(self.backend_id or '???', self.summary)
 
 
 @python_2_unicode_compatible
 class Comment(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
     issue = models.ForeignKey(Issue, related_name='comments')
     message = models.TextField(blank=True)
     backend_id = models.CharField(max_length=255)

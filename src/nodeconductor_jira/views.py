@@ -1,11 +1,14 @@
-from rest_framework import viewsets, filters, mixins, exceptions
+import logging
+
+from rest_framework import filters, generics
 
 from nodeconductor.core import filters as core_filters
 from nodeconductor.structure import views as structure_views
 
-from .backend import JiraBackendError
 from .filters import IssueFilter
 from . import executors, models, serializers
+
+logger = logging.getLogger(__name__)
 
 
 class JiraServiceViewSet(structure_views.BaseServiceViewSet):
@@ -44,3 +47,27 @@ class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     create_executor = executors.CommentCreateExecutor
     update_executor = executors.CommentUpdateExecutor
     delete_executor = executors.CommentDeleteExecutor
+
+
+class WebHookViewSet(generics.CreateAPIView):
+    """ Track updates from JIRA via webhook.
+        Please refer to https://developer.atlassian.com/jiradev/jira-apis/webhooks
+        for JIRA configuration.
+
+        WebHook URL should be defined as:
+        `http://nodeconductor.example.com/api/jira-webhook/?issue=${issue.key}`
+
+        and issue related events should be enabled.
+    """
+
+    authentication_classes = ()
+    permission_classes = ()
+    serializer_class = serializers.WebHookSerializer
+
+    def create(self, request, *args, **kwargs):
+        try:
+            return super(WebHookViewSet, self).create(request, *args, **kwargs)
+        except Exception as e:
+            # Throw validation errors to the logs
+            logger.error("Can't parse JIRA WebHook request: %s" % e)
+            raise

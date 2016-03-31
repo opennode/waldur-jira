@@ -23,7 +23,7 @@ setup(
     long_description=open('README.rst').read(),
     package_dir={'': 'src'},
     packages=find_packages('src', exclude=['*.tests', '*.tests.*', 'tests.*', 'tests']),
-    dependency_links=['git+https://github.com/pycontribs/jira@1.0.3#egg=jira-1.0.3'],
+    dependency_links=['git+https://github.com/pycontribs/jira#egg=jira-1.0.3'],
     install_requires=install_requires,
     zip_safe=False,
     extras_require={
