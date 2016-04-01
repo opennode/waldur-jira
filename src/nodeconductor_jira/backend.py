@@ -79,6 +79,10 @@ class JiraBackend(JiraBaseBackend):
         return wrapped
 
     @reraise_exceptions
+    def get_project(self, project_id):
+        return self.manager.project(project_id)
+
+    @reraise_exceptions
     def create_project(self, project):
         self.manager.create_project(project.backend_id, name=project.name, assignee=self.settings.username)
 
