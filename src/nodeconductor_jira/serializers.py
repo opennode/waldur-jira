@@ -61,12 +61,12 @@ class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer
 
     class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
         model = models.Project
-        view_name = 'jira-project-detail'
+        view_name = 'jira-projects-detail'
 
     def create(self, validated_data):
         backend = self.context['service'].get_backend()
         try:
-            project = backend.projects.get(validated_data['backend_id'])
+            project = backend.get_project(validated_data['backend_id'])
         except JiraBackendError:
             raise serializers.ValidationError(
                 {'backend_id': "Can't find project with ID %s" % validated_data['backend_id']})
