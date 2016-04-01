@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='issue',
             name='resolution',
-            field=models.CharField(default='', max_length=255),
+            field=models.CharField(default='', blank=True, max_length=255),
             preserve_default=False,
         ),
         migrations.AddField(

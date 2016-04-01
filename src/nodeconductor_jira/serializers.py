@@ -80,13 +80,11 @@ class JiraPropertySerializer(AugmentedSerializerMixin, serializers.HyperlinkedMo
 
     class Meta(object):
         model = NotImplemented
-        view_name = NotImplemented
         fields = (
             'url', 'uuid', 'user', 'user_uuid', 'backend_id', 'state'
         )
         read_only_fields = 'uuid', 'user', 'backend_id'
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
         }
         related_paths = {
@@ -98,43 +96,45 @@ class JiraPropertySerializer(AugmentedSerializerMixin, serializers.HyperlinkedMo
         return super(JiraPropertySerializer, self).create(validated_data)
 
 
-class IssueSerializer(JiraPropertySerializer):
-
-    access_url = serializers.ReadOnlyField(source='get_access_url')
-
-    class Meta(JiraPropertySerializer.Meta):
-        model = models.Issue
-        view_name = 'jira-issues-detail'
-        fields = JiraPropertySerializer.Meta.fields + (
-            'project', 'project_uuid', 'project_name',
-            'summary', 'description', 'access_url',
-        )
-        protected_fields = 'project',
-        extra_kwargs = dict(
-            project={'lookup_field': 'uuid', 'view_name': 'jira-projects-detail'},
-            **JiraPropertySerializer.Meta.extra_kwargs
-        )
-        related_paths = dict(
-            project=('uuid', 'name'),
-            **JiraPropertySerializer.Meta.related_paths
-        )
-
-
 class CommentSerializer(JiraPropertySerializer):
 
     class Meta(JiraPropertySerializer.Meta):
         model = models.Comment
-        view_name = 'jira-comments-detail'
         fields = JiraPropertySerializer.Meta.fields + (
             'issue', 'issue_uuid', 'issue_backend_id', 'message'
         )
         protected_fields = 'issue',
         extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'jira-comments-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
             **JiraPropertySerializer.Meta.extra_kwargs
         )
         related_paths = dict(
             issue=('uuid', 'backend_id'),
+            **JiraPropertySerializer.Meta.related_paths
+        )
+
+
+class IssueSerializer(JiraPropertySerializer):
+
+    access_url = serializers.ReadOnlyField(source='get_access_url')
+    comments = CommentSerializer(many=True, read_only=True)
+
+    class Meta(JiraPropertySerializer.Meta):
+        model = models.Issue
+        fields = JiraPropertySerializer.Meta.fields + (
+            'project', 'project_uuid', 'project_name',
+            'summary', 'description', 'resolution', 'status',
+            'access_url', 'comments',
+        )
+        protected_fields = 'project',
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
+            project={'lookup_field': 'uuid', 'view_name': 'jira-projects-detail'},
+            **JiraPropertySerializer.Meta.extra_kwargs
+        )
+        related_paths = dict(
+            project=('uuid', 'name'),
             **JiraPropertySerializer.Meta.related_paths
         )
 
@@ -190,8 +190,8 @@ class JiraIssueSerializer(serializers.Serializer):
 
 class JiraChangeSerializer(serializers.Serializer):
     field = serializers.CharField()
-    fromString = serializers.CharField()
-    toString = serializers.CharField()
+    fromString = serializers.CharField(allow_null=True)
+    toString = serializers.CharField(allow_null=True)
 
 
 class JiraChangelogSerializer(serializers.Serializer):
@@ -219,11 +219,8 @@ class WebHookSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         event_type = dict(self.Event.CHOICES).get(validated_data['webhookEvent'])
-
         try:
-            request = self.context['request']
-            issue_key = request.query_params.get('issue') or validated_data['issue']['key']
-            issue = models.Issue.objects.get(backend_id=issue_key)
+            issue = models.Issue.objects.get(backend_id=validated_data['issue']['key'])
         except models.Issue.DoesNotExist as e:
             if event_type == self.Event.CREATE:
                 fields = validated_data['issue']['fields']
@@ -233,7 +230,7 @@ class WebHookSerializer(serializers.Serializer):
                     raise serializers.ValidationError(e)
                 else:
                     project.issues.create(
-                        status=fields['status'],
+                        status=fields['status']['name'],
                         summary=fields['summary'],
                         description=fields['description'] or '',
                         resolution=fields['resolution'] or '',
@@ -249,19 +246,25 @@ class WebHookSerializer(serializers.Serializer):
                 if 'comment' in validated_data:
                     issue.comments.update_or_create(
                         backend_id=validated_data['comment']['id'],
-                        defaults={'message': validated_data['comment']['body']})
+                        defaults={
+                            'message': validated_data['comment']['body'],
+                            'state': models.Comment.States.OK,
+                        })
 
                 # issue update
                 else:
-                    fields = ('summary', 'status', 'description', 'resolution')
-                    for field in fields:
-                        setattr(issue, field, validated_data['issue']['fields'][field] or '')
+                    fields = validated_data['issue']['fields']
+                    issue.summary = fields['summary']
+                    issue.description = fields['description'] or ''
+                    issue.resolution = fields['resolution'] or ''
+                    issue.status = fields['status']['name']
+                    issue.save()
 
-                    issue.save(update_fields=fields)
-
-                    total_comments = validated_data['issue']['comment']['total']
+                    # XXX: there's no JIRA comment deletion callback in JIRA 6.4
+                    #      hence remove stale comments on general issue update
+                    total_comments = fields['comment']['total']
                     if total_comments < issue.comments.count():
-                        ids = [c['id'] for c in validated_data['issue']['comment']['comments']]
+                        ids = [c['id'] for c in fields['comment']['comments']]
                         issue.comments.exclude(backend_id__in=ids).delete()
 
             if event_type == self.Event.DELETE:

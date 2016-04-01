@@ -4,6 +4,7 @@ from django.utils.encoding import python_2_unicode_compatible
 from model_utils.models import TimeStampedModel
 
 from nodeconductor.core import models as core_models
+from nodeconductor.logging.log import LoggableMixin
 from nodeconductor.structure import models as structure_models
 
 
@@ -46,14 +47,18 @@ class Project(core_models.StateMixin, structure_models.ResourceMixin):
 
 
 @python_2_unicode_compatible
-class Issue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
+class Issue(core_models.UuidMixin, core_models.StateMixin, LoggableMixin, TimeStampedModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
     project = models.ForeignKey(Project, related_name='issues')
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    resolution = models.CharField(max_length=255)
+    resolution = models.CharField(blank=True, max_length=255)
     status = models.CharField(max_length=255)
     backend_id = models.CharField(max_length=255)
+
+    @property
+    def key(self):
+        return self.backend_id
 
     def get_backend(self):
         return self.project.get_backend()
@@ -65,12 +70,15 @@ class Issue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
     def get_access_url(self):
         return self.project.service_project_link.service.settings.backend_url + 'browse/' + self.backend_id
 
+    def get_log_fields(self):
+        return ('uuid', 'user', 'key', 'summary', 'status')
+
     def __str__(self):
         return '{}: {}'.format(self.backend_id or '???', self.summary)
 
 
 @python_2_unicode_compatible
-class Comment(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
+class Comment(core_models.UuidMixin, core_models.StateMixin, LoggableMixin, TimeStampedModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
     issue = models.ForeignKey(Issue, related_name='comments')
     message = models.TextField(blank=True)
@@ -82,6 +90,9 @@ class Comment(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
     @classmethod
     def get_url_name(cls):
         return 'jira-comments'
+
+    def get_log_fields(self):
+        return ('uuid', 'user', 'issue')
 
     def __str__(self):
         return '{}: {}'.format(self.issue.backend_id or '???', self.message)

@@ -55,7 +55,7 @@ class WebHookViewSet(generics.CreateAPIView):
         for JIRA configuration.
 
         WebHook URL should be defined as:
-        `http://nodeconductor.example.com/api/jira-webhook/?issue=${issue.key}`
+        `http://nodeconductor.example.com/api/jira-webhook/`
 
         and issue related events should be enabled.
     """
