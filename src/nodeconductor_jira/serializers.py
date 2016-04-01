@@ -81,9 +81,9 @@ class JiraPropertySerializer(AugmentedSerializerMixin, serializers.HyperlinkedMo
     class Meta(object):
         model = NotImplemented
         fields = (
-            'url', 'uuid', 'user', 'user_uuid', 'backend_id', 'state'
+            'url', 'uuid', 'user', 'user_uuid', 'state'
         )
-        read_only_fields = 'uuid', 'user', 'backend_id'
+        read_only_fields = 'uuid', 'user'
         extra_kwargs = {
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
         }
@@ -124,10 +124,10 @@ class IssueSerializer(JiraPropertySerializer):
         model = models.Issue
         fields = JiraPropertySerializer.Meta.fields + (
             'project', 'project_uuid', 'project_name',
-            'summary', 'description', 'resolution', 'status',
+            'key', 'summary', 'description', 'resolution', 'status',
             'access_url', 'comments',
         )
-        protected_fields = 'project',
+        protected_fields = 'project', 'key'
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
             project={'lookup_field': 'uuid', 'view_name': 'jira-projects-detail'},
