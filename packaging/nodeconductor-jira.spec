@@ -7,8 +7,8 @@ License: Copyright 2016 OpenNode LLC. All rights reserved.
 Url: http://nodeconductor.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: nodeconductor >= 0.81.0
-Requires: python-jira >= 0.47
+Requires: nodeconductor >= 0.90.0
+Requires: python-jira >= 1.0.3
 
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
