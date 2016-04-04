@@ -1,3 +1,5 @@
+from django.conf.urls import patterns, url
+
 from . import views
 
 
@@ -7,3 +9,9 @@ def register_in(router):
     router.register(r'jira-projects', views.ProjectViewSet, base_name='jira-projects')
     router.register(r'jira-issues', views.IssueViewSet, base_name='jira-issues')
     router.register(r'jira-comments', views.CommentViewSet, base_name='jira-comments')
+
+
+urlpatterns = patterns(
+    '',
+    url(r'^api/jira-webhook-receiver/$', views.WebHookReceiverViewSet.as_view()),
+)
