@@ -49,24 +49,14 @@ class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     delete_executor = executors.CommentDeleteExecutor
 
 
-class WebHookViewSet(generics.CreateAPIView):
-    """ Track updates from JIRA via webhook.
-        Please refer to https://developer.atlassian.com/jiradev/jira-apis/webhooks
-        for JIRA configuration.
-
-        WebHook URL should be defined as:
-        `http://nodeconductor.example.com/api/jira-webhook/`
-
-        and issue related events should be enabled.
-    """
-
+class WebHookReceiverViewSet(generics.CreateAPIView):
     authentication_classes = ()
     permission_classes = ()
     serializer_class = serializers.WebHookSerializer
 
     def create(self, request, *args, **kwargs):
         try:
-            return super(WebHookViewSet, self).create(request, *args, **kwargs)
+            return super(WebHookReceiverViewSet, self).create(request, *args, **kwargs)
         except Exception as e:
             # Throw validation errors to the logs
             logger.error("Can't parse JIRA WebHook request: %s" % e)

@@ -138,6 +138,9 @@ class IssueSerializer(JiraPropertySerializer):
             **JiraPropertySerializer.Meta.related_paths
         )
 
+#
+# Serializers below are used by webhook only
+#
 
 class UnixTimeField(serializers.IntegerField):
 
@@ -218,12 +221,13 @@ class WebHookSerializer(serializers.Serializer):
     issue = JiraIssueSerializer()
 
     def create(self, validated_data):
+        fields = validated_data['issue']['fields']
         event_type = dict(self.Event.CHOICES).get(validated_data['webhookEvent'])
+
         try:
             issue = models.Issue.objects.get(backend_id=validated_data['issue']['key'])
         except models.Issue.DoesNotExist as e:
             if event_type == self.Event.CREATE:
-                fields = validated_data['issue']['fields']
                 try:
                     project = models.Project.objects.get(backend_id=fields['project']['key'])
                 except models.Project.DoesNotExist as e:
@@ -253,7 +257,6 @@ class WebHookSerializer(serializers.Serializer):
 
                 # issue update
                 else:
-                    fields = validated_data['issue']['fields']
                     issue.summary = fields['summary']
                     issue.description = fields['description'] or ''
                     issue.resolution = fields['resolution'] or ''
