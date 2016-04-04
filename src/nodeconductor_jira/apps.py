@@ -1,8 +1,6 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
-from nodeconductor.structure import SupportedServices
-
 
 class JiraConfig(AppConfig):
     name = 'nodeconductor_jira'
@@ -10,6 +8,8 @@ class JiraConfig(AppConfig):
     service_name = 'JIRA'
 
     def ready(self):
+        from nodeconductor.structure import SupportedServices
+
         from . import handlers
         from .backend import JiraBackend
         SupportedServices.register_backend(JiraBackend)

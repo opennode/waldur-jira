@@ -4,7 +4,7 @@ from django.utils.encoding import python_2_unicode_compatible
 from model_utils.models import TimeStampedModel
 
 from nodeconductor.core import models as core_models
-from nodeconductor.logging.log import LoggableMixin
+from nodeconductor.logging.loggers import LoggableMixin
 from nodeconductor.structure import models as structure_models
 
 
