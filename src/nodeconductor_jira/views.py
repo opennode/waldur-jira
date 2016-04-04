@@ -1,11 +1,14 @@
-from rest_framework import viewsets, filters, mixins, exceptions
+import logging
+
+from rest_framework import filters, generics
 
 from nodeconductor.core import filters as core_filters
 from nodeconductor.structure import views as structure_views
 
-from .backend import JiraBackendError
 from .filters import IssueFilter
 from . import executors, models, serializers
+
+logger = logging.getLogger(__name__)
 
 
 class JiraServiceViewSet(structure_views.BaseServiceViewSet):
@@ -44,3 +47,17 @@ class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     create_executor = executors.CommentCreateExecutor
     update_executor = executors.CommentUpdateExecutor
     delete_executor = executors.CommentDeleteExecutor
+
+
+class WebHookReceiverViewSet(generics.CreateAPIView):
+    authentication_classes = ()
+    permission_classes = ()
+    serializer_class = serializers.WebHookReceiverSerializer
+
+    def create(self, request, *args, **kwargs):
+        try:
+            return super(WebHookReceiverViewSet, self).create(request, *args, **kwargs)
+        except Exception as e:
+            # Throw validation errors to the logs
+            logger.error("Can't parse JIRA WebHook request: %s" % e)
+            raise
