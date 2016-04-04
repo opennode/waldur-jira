@@ -7,7 +7,7 @@ import nodeconductor.core.models
 import django.db.models.deletion
 from django.conf import settings
 import django.utils.timezone
-import nodeconductor.logging.log
+import nodeconductor.logging.loggers
 import uuidfield.fields
 import taggit.managers
 import model_utils.fields
@@ -68,7 +68,7 @@ class Migration(migrations.Migration):
             options={
                 'abstract': False,
             },
-            bases=(nodeconductor.core.models.SerializableAbstractMixin, nodeconductor.core.models.DescendantMixin, nodeconductor.logging.log.LoggableMixin, models.Model),
+            bases=(nodeconductor.core.models.SerializableAbstractMixin, nodeconductor.core.models.DescendantMixin, nodeconductor.logging.loggers.LoggableMixin, models.Model),
         ),
         migrations.CreateModel(
             name='JiraServiceProjectLink',
@@ -80,7 +80,7 @@ class Migration(migrations.Migration):
             options={
                 'abstract': False,
             },
-            bases=(nodeconductor.core.models.SerializableAbstractMixin, nodeconductor.core.models.DescendantMixin, nodeconductor.logging.log.LoggableMixin, models.Model),
+            bases=(nodeconductor.core.models.SerializableAbstractMixin, nodeconductor.core.models.DescendantMixin, nodeconductor.logging.loggers.LoggableMixin, models.Model),
         ),
         migrations.CreateModel(
             name='Project',
@@ -103,7 +103,7 @@ class Migration(migrations.Migration):
             options={
                 'abstract': False,
             },
-            bases=(nodeconductor.core.models.SerializableAbstractMixin, nodeconductor.core.models.DescendantMixin, nodeconductor.logging.log.LoggableMixin, models.Model),
+            bases=(nodeconductor.core.models.SerializableAbstractMixin, nodeconductor.core.models.DescendantMixin, nodeconductor.logging.loggers.LoggableMixin, models.Model),
         ),
         migrations.AddField(
             model_name='jiraserviceprojectlink',
