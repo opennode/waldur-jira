@@ -201,7 +201,7 @@ class JiraChangelogSerializer(serializers.Serializer):
     items = JiraChangeSerializer(many=True)
 
 
-class WebHookSerializer(serializers.Serializer):
+class WebHookReceiverSerializer(serializers.Serializer):
 
     class Event:
         CREATE = 1

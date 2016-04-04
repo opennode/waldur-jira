@@ -52,7 +52,7 @@ class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
 class WebHookReceiverViewSet(generics.CreateAPIView):
     authentication_classes = ()
     permission_classes = ()
-    serializer_class = serializers.WebHookSerializer
+    serializer_class = serializers.WebHookReceiverSerializer
 
     def create(self, request, *args, **kwargs):
         try:
