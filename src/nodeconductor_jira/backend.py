@@ -4,9 +4,9 @@ import functools
 from jira import JIRA, JIRAError
 
 from django.utils import six
+from django.utils.dateparse import parse_datetime
 
 from nodeconductor.structure import ServiceBackend, ServiceBackendError
-from . import executors
 
 
 logger = logging.getLogger(__name__)
@@ -135,3 +135,21 @@ class JiraBackend(JiraBaseBackend):
     def delete_comment(self, comment):
         backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
         backend_comment.delete()
+
+    @reraise_exceptions
+    def import_project_issues(self, project):
+        for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
+            issue = project.issues.create(
+                status=backend_issue.fields.status.name,
+                summary=backend_issue.fields.summary,
+                description=backend_issue.fields.description or '',
+                resolution=backend_issue.fields.resolution or '',
+                backend_id=backend_issue.key,
+                created=parse_datetime(backend_issue.fields.created),
+                state=project.issues.model.States.OK)
+
+            for backend_comment in self.manager.comments(backend_issue):
+                    issue.comments.create(
+                        message=backend_comment.body,
+                        backend_id=backend_comment.id,
+                        state=issue.comments.model.States.OK)

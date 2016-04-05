@@ -1,4 +1,9 @@
+from .executors import ProjectImportExecutor
 from .log import event_logger
+
+
+def import_project_issues(sender, instance, **kwargs):
+    ProjectImportExecutor.execute(instance, updated_fields=None)
 
 
 def log_issue_save(sender, instance, created=False, **kwargs):
