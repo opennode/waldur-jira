@@ -151,5 +151,6 @@ class JiraBackend(JiraBaseBackend):
             for backend_comment in self.manager.comments(backend_issue):
                     issue.comments.create(
                         message=backend_comment.body,
+                        created=parse_datetime(backend_comment.created),
                         backend_id=backend_comment.id,
                         state=issue.comments.model.States.OK)
