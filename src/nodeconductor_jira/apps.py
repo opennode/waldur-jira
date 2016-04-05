@@ -9,6 +9,7 @@ class JiraConfig(AppConfig):
 
     def ready(self):
         from nodeconductor.structure import SupportedServices
+        from nodeconductor.structure.signals import resource_imported
 
         from . import handlers
         from .backend import JiraBackend
@@ -16,6 +17,13 @@ class JiraConfig(AppConfig):
 
         Issue = self.get_model('Issue')
         Comment = self.get_model('Comment')
+        Project = self.get_model('Project')
+
+        resource_imported.connect(
+            handlers.import_project_issues,
+            sender=Project,
+            dispatch_uid='nodeconductor_jira.handlers.import_project_issues',
+        )
 
         signals.post_save.connect(
             handlers.log_issue_save,

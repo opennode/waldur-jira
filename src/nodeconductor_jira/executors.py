@@ -1,5 +1,3 @@
-from django.conf import settings
-
 from nodeconductor.core import tasks, executors
 
 
@@ -17,6 +15,14 @@ class ProjectUpdateExecutor(executors.UpdateExecutor):
     def get_task_signature(cls, project, serialized_project, **kwargs):
         return tasks.BackendMethodTask().si(
             serialized_project, 'update_project', state_transition='begin_updating')
+
+
+class ProjectImportExecutor(executors.UpdateExecutor):
+
+    @classmethod
+    def get_task_signature(cls, project, serialized_project, **kwargs):
+        return tasks.BackendMethodTask().si(
+            serialized_project, 'import_project_issues', state_transition='begin_updating')
 
 
 class ProjectDeleteExecutor(executors.DeleteExecutor):
