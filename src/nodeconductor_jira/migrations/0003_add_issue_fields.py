@@ -38,12 +38,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='issue',
             name='impact',
-            field=models.SmallIntegerField(default=0, choices=[(1, b'Small - Partial loss of service, one person affected'), (2, b'Medium - One department or service is affected'), (3, b'Large - Whole organization or all services are affected')]),
+            field=models.SmallIntegerField(default=0, choices=[(0, b'n/a'), (1, b'Small - Partial loss of service, one person affected'), (2, b'Medium - One department or service is affected'), (3, b'Large - Whole organization or all services are affected')]),
         ),
         migrations.AddField(
             model_name='issue',
             name='priority',
-            field=models.SmallIntegerField(default=0, choices=[(1, b'Minor'), (2, b'Major'), (3, b'Critical')]),
+            field=models.SmallIntegerField(default=0, choices=[(0, b'n/a'), (1, b'Minor'), (2, b'Major'), (3, b'Critical')]),
         ),
         migrations.AddField(
             model_name='issue',
