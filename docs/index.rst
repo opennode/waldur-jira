@@ -10,14 +10,8 @@ Guide
    :maxdepth: 1
 
    installation
+   guide/setup
 
-API
----
-
-.. toctree::
-   :maxdepth: 1
-
-   api
 
 License
 -------

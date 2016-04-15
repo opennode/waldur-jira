@@ -1,3 +1,29 @@
+Configuration
+-------------
+
+NodeConductor can integrate with Atlassian JIRA to provide support to the end-users.
+
+Expected structure for the JIRA project is as follows:
+
+- Existing issue type: Support Request (must be default issue type for the project)
+- Custom fields:
+
+  * Impact, type: Text Field (single line)
+  * Original Reporter, type: Text Field (single line)
+
+Expected permissions:
+
++-------------------+------------------+
+| Permission        | Permission code  |
++===================+==================+
+| Add Comments      | COMMENT_ISSUE    |
++-------------------+------------------+
+| Edit Own Comments | COMMENT_EDIT_OWN |
++-------------------+------------------+
+| Browse Projects   | BROWSE           |
++-------------------+------------------+
+
+
 WebHook Setup
 -------------
 

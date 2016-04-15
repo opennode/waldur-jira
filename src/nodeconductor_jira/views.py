@@ -1,11 +1,12 @@
 import logging
 
-from rest_framework import filters, generics
+from rest_framework import filters, generics, permissions, viewsets
 
+from nodeconductor.core import mixins as core_mixins
 from nodeconductor.core import filters as core_filters
 from nodeconductor.structure import views as structure_views
 
-from .filters import IssueFilter
+from .filters import AttachmentFilter, IssueFilter, CommentFilter
 from . import executors, models, serializers
 
 logger = logging.getLogger(__name__)
@@ -42,11 +43,23 @@ class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
 
 class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     queryset = models.Comment.objects.all()
+    filter_class = CommentFilter
     filter_backends = filters.DjangoFilterBackend, core_filters.StaffOrUserFilter
     serializer_class = serializers.CommentSerializer
     create_executor = executors.CommentCreateExecutor
     update_executor = executors.CommentUpdateExecutor
     delete_executor = executors.CommentDeleteExecutor
+
+
+class AttachmentViewSet(core_mixins.CreateExecutorMixin, core_mixins.DeleteExecutorMixin, viewsets.ModelViewSet):
+    queryset = models.Attachment.objects.all()
+    filter_class = AttachmentFilter
+    filter_backends = filters.DjangoFilterBackend, core_filters.StaffOrUserFilter
+    permission_classes = permissions.IsAuthenticated, permissions.DjangoObjectPermissions
+    serializer_class = serializers.AttachmentSerializer
+    create_executor = executors.AttachmentCreateExecutor
+    delete_executor = executors.AttachmentDeleteExecutor
+    lookup_field = 'uuid'
 
 
 class WebHookReceiverViewSet(generics.CreateAPIView):
