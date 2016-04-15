@@ -1,6 +1,7 @@
 from datetime import datetime
 from rest_framework import serializers
 
+from nodeconductor.core.fields import NaturalChoiceField
 from nodeconductor.core.serializers import AugmentedSerializerMixin
 from nodeconductor.structure import serializers as structure_serializers
 
@@ -48,7 +49,7 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
         model = models.Project
         view_name = 'jira-projects-detail'
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'key', 'reporter_field', 'default_issue_type',
+            'key', 'impact_field', 'reporter_field', 'default_issue_type',
         )
 
     def create(self, validated_data):
@@ -57,10 +58,16 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
 
 
 class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer):
+    impact_field = serializers.CharField(write_only=True)
+    reporter_field = serializers.CharField(write_only=True)
+    default_issue_type = serializers.CharField(write_only=True)
 
     class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
         model = models.Project
         view_name = 'jira-projects-detail'
+        fields = structure_serializers.BaseResourceImportSerializer.Meta.fields + (
+            'impact_field', 'reporter_field', 'default_issue_type',
+        )
 
     def create(self, validated_data):
         backend = self.context['service'].get_backend()
@@ -101,7 +108,7 @@ class CommentSerializer(JiraPropertySerializer):
     class Meta(JiraPropertySerializer.Meta):
         model = models.Comment
         fields = JiraPropertySerializer.Meta.fields + (
-            'issue', 'issue_uuid', 'issue_backend_id', 'message'
+            'issue', 'issue_uuid', 'issue_key', 'message', 'created',
         )
         protected_fields = 'issue',
         extra_kwargs = dict(
@@ -110,13 +117,33 @@ class CommentSerializer(JiraPropertySerializer):
             **JiraPropertySerializer.Meta.extra_kwargs
         )
         related_paths = dict(
-            issue=('uuid', 'backend_id'),
+            issue=('uuid', 'key'),
+            **JiraPropertySerializer.Meta.related_paths
+        )
+
+
+class AttachmentSerializer(JiraPropertySerializer):
+
+    class Meta(JiraPropertySerializer.Meta):
+        model = models.Attachment
+        fields = JiraPropertySerializer.Meta.fields + (
+            'issue', 'issue_uuid', 'issue_key', 'file'
+        )
+        protected_fields = 'issue',
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'jira-attachments-detail'},
+            issue={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
+            **JiraPropertySerializer.Meta.extra_kwargs
+        )
+        related_paths = dict(
+            issue=('uuid', 'key'),
             **JiraPropertySerializer.Meta.related_paths
         )
 
 
 class IssueSerializer(JiraPropertySerializer):
-
+    impact = NaturalChoiceField(models.Issue.Impact.CHOICES)
+    priority = NaturalChoiceField(models.Issue.Priority.CHOICES)
     access_url = serializers.ReadOnlyField(source='get_access_url')
     comments = CommentSerializer(many=True, read_only=True)
 
@@ -125,8 +152,10 @@ class IssueSerializer(JiraPropertySerializer):
         fields = JiraPropertySerializer.Meta.fields + (
             'project', 'project_uuid', 'project_name',
             'key', 'summary', 'description', 'resolution', 'status',
+            'type', 'priority', 'impact', 'created', 'updated', 'updated_username',
             'access_url', 'comments',
         )
+        read_only_fields = 'type', 'status', 'resolution', 'updated_username'
         protected_fields = 'project', 'key'
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
@@ -141,6 +170,7 @@ class IssueSerializer(JiraPropertySerializer):
 #
 # Serializers below are used by webhook only
 #
+
 
 class UnixTimeField(serializers.IntegerField):
 
@@ -159,27 +189,27 @@ class JiraCommentSerializer(serializers.Serializer):
     updated = serializers.DateTimeField()
 
 
+class JiraFieldSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
+
+
 class JiraIssueCommentSerializer(serializers.Serializer):
     total = serializers.IntegerField()
     comments = JiraCommentSerializer(many=True)
 
 
-class JiraIssueStatusSerializer(serializers.Serializer):
-    id = serializers.CharField()
-    name = serializers.CharField()
-
-
-class JiraIssueProjectSerializer(serializers.Serializer):
-    id = serializers.CharField()
+class JiraIssueProjectSerializer(JiraFieldSerializer):
     key = serializers.CharField()
-    name = serializers.CharField()
 
 
 class JiraIssueFieldsSerializer(serializers.Serializer):
     summary = serializers.CharField()
     description = serializers.CharField(allow_null=True)
     resolution = serializers.CharField(allow_null=True)
-    status = JiraIssueStatusSerializer()
+    issuetype = JiraFieldSerializer()
+    priority = JiraFieldSerializer()
+    status = JiraFieldSerializer()
     project = JiraIssueProjectSerializer()
     created = serializers.DateTimeField()
     updated = serializers.DateTimeField()
@@ -201,6 +231,12 @@ class JiraChangelogSerializer(serializers.Serializer):
     items = JiraChangeSerializer(many=True)
 
 
+class JiraUserSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    displayName = serializers.CharField()
+    emailAddress = serializers.EmailField()
+
+
 class WebHookReceiverSerializer(serializers.Serializer):
 
     class Event:
@@ -219,27 +255,42 @@ class WebHookReceiverSerializer(serializers.Serializer):
     changelog = JiraChangelogSerializer(required=False)
     comment = JiraCommentSerializer(required=False)
     issue = JiraIssueSerializer()
+    user = JiraUserSerializer()
 
     def create(self, validated_data):
         fields = validated_data['issue']['fields']
         event_type = dict(self.Event.CHOICES).get(validated_data['webhookEvent'])
 
         try:
+            project = models.Project.objects.get(backend_id=fields['project']['key'])
+        except models.Project.DoesNotExist as e:
+            raise serializers.ValidationError(e)
+
+        backend = project.get_backend()
+        priority = backend.convert_field(
+            fields['priority']['name'], models.Issue.Priority.CHOICES, mapping_setting='JIRA_PRIORITY_MAPPING')
+        if project.impact_field:
+            impact_field = backend.get_field_id_by_name(project.impact_field)
+            impact_value = self.initial_data['issue']['fields'].get(impact_field)
+            impact = backend.convert_field(impact_value, models.Issue.Impact.CHOICES)
+        else:
+            impact = 0
+
+        try:
             issue = models.Issue.objects.get(backend_id=validated_data['issue']['key'])
         except models.Issue.DoesNotExist as e:
             if event_type == self.Event.CREATE:
-                try:
-                    project = models.Project.objects.get(backend_id=fields['project']['key'])
-                except models.Project.DoesNotExist as e:
-                    raise serializers.ValidationError(e)
-                else:
-                    project.issues.create(
-                        status=fields['status']['name'],
-                        summary=fields['summary'],
-                        description=fields['description'] or '',
-                        resolution=fields['resolution'] or '',
-                        backend_id=validated_data['issue']['key'],
-                        state=models.Issue.States.OK)
+                project.issues.create(
+                    type=fields['issuetype']['name'],
+                    status=fields['status']['name'],
+                    summary=fields['summary'],
+                    impact=impact,
+                    priority=priority,
+                    description=fields['description'] or '',
+                    resolution=fields['resolution'] or '',
+                    updated_username=validated_data['user']['displayName'],
+                    backend_id=validated_data['issue']['key'],
+                    state=models.Issue.States.OK)
 
             else:
                 raise serializers.ValidationError({'issue': e})
@@ -248,19 +299,24 @@ class WebHookReceiverSerializer(serializers.Serializer):
             if event_type == self.Event.UPDATE:
                 # comment update
                 if 'comment' in validated_data:
+                    message = models.Comment().clean_message(validated_data['comment']['body'])
                     issue.comments.update_or_create(
                         backend_id=validated_data['comment']['id'],
                         defaults={
-                            'message': validated_data['comment']['body'],
+                            'message': message,
                             'state': models.Comment.States.OK,
                         })
 
                 # issue update
                 else:
+                    issue.impact = impact
+                    issue.priority = priority
                     issue.summary = fields['summary']
                     issue.description = fields['description'] or ''
                     issue.resolution = fields['resolution'] or ''
                     issue.status = fields['status']['name']
+                    issue.type = fields['issuetype']['name']
+                    issue.updated_username = validated_data['user']['displayName']
                     issue.save()
 
                     # XXX: there's no JIRA comment deletion callback in JIRA 6.4
