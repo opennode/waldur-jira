@@ -68,10 +68,6 @@ class JiraBackend(JiraBaseBackend):
         except StopIteration:
             return 0
 
-    @classmethod
-    def convert_impact_field(cls, value):
-        return cls.convert_field(value)
-
     @property
     def manager(self):
         try:
