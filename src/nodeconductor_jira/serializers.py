@@ -155,7 +155,7 @@ class IssueSerializer(JiraPropertySerializer):
             'type', 'priority', 'impact', 'created', 'updated', 'updated_username',
             'access_url', 'comments',
         )
-        read_only_fields = 'type', 'status', 'resolution'
+        read_only_fields = 'type', 'status', 'resolution', 'updated_username'
         protected_fields = 'project', 'key'
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
