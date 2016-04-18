@@ -17,6 +17,13 @@ class IssueFilter(django_filters.FilterSet):
             'project_key',
             'user_uuid'
         ]
+        order_by = [
+            'created',
+            'updated',
+            # desc
+            '-created',
+            '-updated',
+        ]
 
 
 class CommentFilter(django_filters.FilterSet):
