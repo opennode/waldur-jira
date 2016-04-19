@@ -5,6 +5,7 @@ from rest_framework import filters, generics, permissions, viewsets
 from nodeconductor.core import mixins as core_mixins
 from nodeconductor.core import filters as core_filters
 from nodeconductor.structure import views as structure_views
+from nodeconductor.structure import filters as structure_filters
 
 from .filters import AttachmentFilter, IssueFilter, CommentFilter
 from . import executors, models, serializers
@@ -34,7 +35,6 @@ class ProjectViewSet(structure_views.BaseResourceExecutorViewSet):
 class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     queryset = models.Issue.objects.all()
     filter_class = IssueFilter
-    filter_backends = filters.DjangoFilterBackend, core_filters.StaffOrUserFilter
     serializer_class = serializers.IssueSerializer
     create_executor = executors.IssueCreateExecutor
     update_executor = executors.IssueUpdateExecutor
@@ -44,7 +44,6 @@ class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
 class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     queryset = models.Comment.objects.all()
     filter_class = CommentFilter
-    filter_backends = filters.DjangoFilterBackend, core_filters.StaffOrUserFilter
     serializer_class = serializers.CommentSerializer
     create_executor = executors.CommentCreateExecutor
     update_executor = executors.CommentUpdateExecutor
@@ -54,7 +53,7 @@ class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
 class AttachmentViewSet(core_mixins.CreateExecutorMixin, core_mixins.DeleteExecutorMixin, viewsets.ModelViewSet):
     queryset = models.Attachment.objects.all()
     filter_class = AttachmentFilter
-    filter_backends = filters.DjangoFilterBackend, core_filters.StaffOrUserFilter
+    filter_backends = structure_filters.GenericRoleFilter, filters.DjangoFilterBackend
     permission_classes = permissions.IsAuthenticated, permissions.DjangoObjectPermissions
     serializer_class = serializers.AttachmentSerializer
     create_executor = executors.AttachmentCreateExecutor

@@ -66,6 +66,8 @@ Example Setup
 2. Import support project
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Make sure custom fields configured properly and "available_for_all" property is set to true.
+
 .. code-block:: http
 
     POST /api/jira/a2f322fed8c444fab48547f595b34279/link/ HTTP/1.1
@@ -79,7 +81,8 @@ Example Setup
         "project": "http://example.com/api/projects/e63838e3e68f4fc4aa39617b7550cef3/",
         "impact_field": "Impact",
         "reporter_field": "Original Reporter",
-        "default_issue_type": "Support Request"
+        "default_issue_type": "Support Request",
+        "available_for_all": true
     }
 
 3. Perform support actions

@@ -48,8 +48,11 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Project
         view_name = 'jira-projects-detail'
+        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
+            'key',
+        )
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'key', 'impact_field', 'reporter_field', 'default_issue_type',
+            'key', 'impact_field', 'reporter_field', 'default_issue_type', 'available_for_all',
         )
 
     def create(self, validated_data):
@@ -66,7 +69,7 @@ class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer
         model = models.Project
         view_name = 'jira-projects-detail'
         fields = structure_serializers.BaseResourceImportSerializer.Meta.fields + (
-            'impact_field', 'reporter_field', 'default_issue_type',
+            'impact_field', 'reporter_field', 'default_issue_type', 'available_for_all',
         )
 
     def create(self, validated_data):
