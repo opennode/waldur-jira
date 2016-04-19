@@ -1,4 +1,5 @@
 import re
+import urlparse
 
 from django.db import models
 from django.conf import settings
@@ -29,12 +30,17 @@ class JiraServiceProjectLink(structure_models.ServiceProjectLink):
 
 
 class Project(core_models.StateMixin, structure_models.ResourceMixin):
+
+    class Permissions(structure_models.ResourceMixin.Permissions):
+        extra_query = dict(available_for_all=True)
+
     service_project_link = models.ForeignKey(
         JiraServiceProjectLink, related_name='projects', on_delete=models.PROTECT)
 
     impact_field = models.CharField(max_length=64, blank=True)
     reporter_field = models.CharField(max_length=64, blank=True)
     default_issue_type = models.CharField(max_length=64, blank=True)
+    available_for_all = models.BooleanField(default=False, help_text="Allow access to any user")
 
     def get_backend(self):
         return super(Project, self).get_backend(
@@ -44,15 +50,30 @@ class Project(core_models.StateMixin, structure_models.ResourceMixin):
             default_issue_type=self.default_issue_type)
 
     def get_access_url(self):
-        return self.service_project_link.service.settings.backend_url + 'projects/' + self.backend_id
+        base_url = self.service_project_link.service.settings.backend_url
+        return urlparse.urljoin(base_url, 'projects/' + self.backend_id)
 
     @classmethod
     def get_url_name(cls):
         return 'jira-projects'
 
 
+class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
+    backend_id = models.CharField(max_length=255)
+
+    class Permissions(object):
+        customer_path = 'project__service_project_link__project__customer'
+        project_path = 'project__service_project_link__project'
+        project_group_path = 'project__service_project_link__project__project_groups'
+        extra_query = dict(project__available_for_all=True)
+
+    class Meta(object):
+        abstract = True
+
+
 @python_2_unicode_compatible
-class Issue(core_models.UuidMixin, core_models.StateMixin, LoggableMixin, TimeStampedModel):
+class Issue(LoggableMixin, JiraPropertyIssue):
 
     class Priority:
         UNKNOWN = 0
@@ -80,7 +101,6 @@ class Issue(core_models.UuidMixin, core_models.StateMixin, LoggableMixin, TimeSt
             (LARGE, 'Large - Whole organization or all services are affected'),
         )
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
     type = models.CharField(max_length=255)
     project = models.ForeignKey(Project, related_name='issues')
     summary = models.CharField(max_length=255)
@@ -91,7 +111,6 @@ class Issue(core_models.UuidMixin, core_models.StateMixin, LoggableMixin, TimeSt
     status = models.CharField(max_length=255)
     updated = models.DateTimeField(auto_now_add=True)
     updated_username = models.CharField(max_length=255, blank=True)
-    backend_id = models.CharField(max_length=255)
 
     @property
     def key(self):
@@ -105,7 +124,8 @@ class Issue(core_models.UuidMixin, core_models.StateMixin, LoggableMixin, TimeSt
         return 'jira-issues'
 
     def get_access_url(self):
-        return self.project.service_project_link.service.settings.backend_url + 'browse/' + self.backend_id
+        base_url = self.project.service_project_link.service.settings.backend_url
+        return urlparse.urljoin(base_url, 'browse/' + self.backend_id)
 
     def get_log_fields(self):
         return ('uuid', 'user', 'key', 'summary', 'status')
@@ -114,12 +134,22 @@ class Issue(core_models.UuidMixin, core_models.StateMixin, LoggableMixin, TimeSt
         return '{}: {}'.format(self.backend_id or '???', self.summary)
 
 
+class JiraSubPropertyIssue(JiraPropertyIssue):
+
+    class Permissions(object):
+        customer_path = 'issue__project__service_project_link__project__customer'
+        project_path = 'issue__project__service_project_link__project'
+        project_group_path = 'issue__project__service_project_link__project__project_groups'
+        extra_query = dict(issue__project__available_for_all=True)
+
+    class Meta(object):
+        abstract = True
+
+
 @python_2_unicode_compatible
-class Comment(core_models.UuidMixin, core_models.StateMixin, LoggableMixin, TimeStampedModel):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
+class Comment(LoggableMixin, JiraSubPropertyIssue):
     issue = models.ForeignKey(Issue, related_name='comments')
     message = models.TextField(blank=True)
-    backend_id = models.CharField(max_length=255)
 
     def get_backend(self):
         return self.issue.project.get_backend()
@@ -162,11 +192,9 @@ class Comment(core_models.UuidMixin, core_models.StateMixin, LoggableMixin, Time
         return '{}: {}'.format(self.issue.backend_id or '???', self.message)
 
 
-class Attachment(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
-    file = models.FileField(upload_to='jira_attachments')
+class Attachment(JiraSubPropertyIssue):
     issue = models.ForeignKey(Issue, related_name='attachments')
-    backend_id = models.CharField(max_length=255)
+    file = models.FileField(upload_to='jira_attachments')
 
     def get_backend(self):
         return self.issue.project.get_backend()
