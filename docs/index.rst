@@ -1,5 +1,5 @@
 Welcome to NodeConductor JIRA plugin's documentation!
-================================================================
+=====================================================
 
 Plugin for interaction and management of Atlassian JIRA.
 
@@ -12,6 +12,13 @@ Guide
    installation
    guide/setup
 
+API
+---
+
+.. toctree::
+   :maxdepth: 1
+
+   drfapi/index
 
 License
 -------
