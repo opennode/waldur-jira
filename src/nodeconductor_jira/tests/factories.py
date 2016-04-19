@@ -5,6 +5,7 @@ from django.core.urlresolvers import reverse
 from nodeconductor.structure.tests import factories as structure_factories
 
 from .. import models
+from ..apps import JiraConfig
 
 
 class JiraServiceFactory(factory.DjangoModelFactory):
@@ -12,7 +13,7 @@ class JiraServiceFactory(factory.DjangoModelFactory):
         model = models.JiraService
 
     name = factory.Sequence(lambda n: 'service%s' % n)
-    settings = factory.SubFactory(structure_factories.ServiceSettingsFactory, type='Jira', backend_url='http://jira/')
+    settings = factory.SubFactory(structure_factories.ServiceSettingsFactory, type=JiraConfig.service_name, backend_url='http://jira/')
     customer = factory.SubFactory(structure_factories.CustomerFactory)
 
     @classmethod
