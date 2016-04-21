@@ -91,14 +91,14 @@ class JiraPropertySerializer(AugmentedSerializerMixin, serializers.HyperlinkedMo
     class Meta(object):
         model = NotImplemented
         fields = (
-            'url', 'uuid', 'user', 'user_uuid', 'state'
+            'url', 'uuid', 'user', 'user_uuid', 'user_name', 'user_email', 'state'
         )
         read_only_fields = 'uuid', 'user'
         extra_kwargs = {
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
         }
         related_paths = {
-            'user': ('uuid',),
+            'user': ('uuid', 'name', 'email'),
         }
 
     def create(self, validated_data):
