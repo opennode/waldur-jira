@@ -28,12 +28,14 @@ class IssueFilter(django_filters.FilterSet):
 
 class CommentFilter(django_filters.FilterSet):
     issue_key = django_filters.CharFilter(name='issue__backend_id')
+    issue_uuid = django_filters.CharFilter(name='issue__uuid')
     user_uuid = django_filters.CharFilter(name='user__uuid')
 
     class Meta(object):
         model = Comment
         fields = [
             'issue_key',
+            'issue_uuid',
             'user_uuid'
         ]
 
