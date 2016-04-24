@@ -8,6 +8,7 @@ class IssueFilter(django_filters.FilterSet):
     project_key = django_filters.CharFilter(name='project__backend_id')
     user_uuid = django_filters.CharFilter(name='user__uuid')
     key = django_filters.CharFilter(name='backend_id')
+    status = django_filters.CharFilter()
 
     class Meta(object):
         model = Issue
