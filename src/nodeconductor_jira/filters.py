@@ -16,6 +16,7 @@ class IssueFilter(django_filters.FilterSet):
             'summary',
             'project_key',
             'user_uuid'
+            'status',
         ]
         order_by = [
             'created',
