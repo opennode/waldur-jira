@@ -32,7 +32,7 @@ else:
 
 setup(
     name='nodeconductor-jira',
-    version='0.2.0',
+    version='0.2.1',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://nodeconductor.com',
@@ -57,6 +57,6 @@ setup(
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
         'Operating System :: OS Independent',
-        'License :: Apache v2',
+        'License :: OSI Approved :: Apache Software License',
     ],
 )
