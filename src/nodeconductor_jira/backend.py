@@ -132,7 +132,7 @@ class JiraBackend(JiraBaseBackend):
             issuetype={'name': self.default_issue_type},
         )
         if self.reporter_field:
-            args[self.get_field_id_by_name(self.reporter_field)] = issue.user.uuid.hex
+            args[self.get_field_id_by_name(self.reporter_field)] = issue.user.username
 
         if self.impact_field and issue.impact:
             args[self.get_field_id_by_name(self.impact_field)] = issue.get_impact_display()
