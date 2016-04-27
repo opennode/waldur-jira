@@ -6,12 +6,12 @@ from nodeconductor.core import NodeConductorExtension
 class JiraExtension(NodeConductorExtension):
 
     class Settings:
-        # JIRA admin account credentials
-        NODECONDUCTOR_JIRA = {
-         'username': 'admin',
-         'password': 'secret',
-         'project': 'PRJ',
-         'server': 'https://jira.example.com/',
+        JIRA_COMMENT_TEMPLATE = "{body}\n\n_(added by {user.full_name} [{user.username}] via G-Cloud Portal)_"
+        # Optional mapping of priority names in NC and JIRA
+        JIRA_PRIORITY_MAPPING = {
+            'Minor': '3 - Minor',
+            'Major': '2 - Major',
+            'Critical': '1 - Critical',
         }
 
     @staticmethod
@@ -19,7 +19,11 @@ class JiraExtension(NodeConductorExtension):
         return 'nodeconductor_jira'
 
     @staticmethod
+    def django_urls():
+        from .urls import urlpatterns
+        return urlpatterns
+
+    @staticmethod
     def rest_urls():
         from .urls import register_in
         return register_in
-

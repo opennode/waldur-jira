@@ -1,11 +1,11 @@
-from __future__ import unicode_literals
-
-import re
 import logging
+import functools
 
 from jira import JIRA, JIRAError
 
+from django.conf import settings
 from django.utils import six
+from django.utils.dateparse import parse_datetime
 
 from nodeconductor.structure import ServiceBackend, ServiceBackendError
 
@@ -19,164 +19,202 @@ class JiraBackendError(ServiceBackendError):
 
 class JiraBaseBackend(ServiceBackend):
 
-    def __init__(self, settings, core_project=None, reporter_field=None, default_issue_type='Task'):
+    def __init__(self, settings, project=None, impact_field=None,
+                 reporter_field=None, default_issue_type='Task', verify=False):
+
         self.settings = settings
-        self.core_project = core_project
+        self.project = project
+        self.impact_field = impact_field
         self.reporter_field = reporter_field
         self.default_issue_type = default_issue_type
+        self.verify = verify
 
-        self.jira = JIRA(
-            server=settings.backend_url,
-            options={'verify': False},
-            basic_auth=(settings.username, settings.password),
-            validate=False)
+    def sync(self):
+        self.ping(raise_exception=True)
 
-        if self.reporter_field:
-            try:
-                self.reporter_field_id = next(
-                    f['id'] for f in self.jira.fields() if self.reporter_field in f['clauseNames'])
-            except StopIteration:
-                raise JiraBackendError("Can't custom field %s" % self.reporter_field)
+    def ping(self, raise_exception=False):
+        try:
+            self.manager.myself()
+        except JIRAError as e:
+            if raise_exception:
+                six.reraise(JiraBackendError, e)
+            return False
+        else:
+            return True
+
+    def get_resources_for_import(self):
+        return [{
+            'name': proj.name,
+            'backend_id': proj.key,
+        } for proj in self.manager.projects()]
 
 
 class JiraBackend(JiraBaseBackend):
-    """ NodeConductor interface to JIRA """
+    """ NodeConductor interface to JIRA.
+        http://pythonhosted.org/jira/
+        http://docs.atlassian.com/jira/REST/latest/
+    """
 
-    class Resource(object):
-        """ Generic JIRA resource """
+    @staticmethod
+    def convert_field(value, choices, mapping_setting=None):
+        """ Reverse mapping for choice fields """
+        if mapping_setting:
+            mapping = getattr(settings, mapping_setting, {})
+            mapping = {v: k for k, v in mapping.items()}
+            value = mapping.get(value, value)
 
-        def __init__(self, manager):
-            self.manager = manager
+        try:
+            return next(k for k, v in choices if v == value)
+        except StopIteration:
+            return 0
 
-    class Issue(Resource):
-        """ JIRA issues resource """
-
-        class IssueQuerySet(object):
-            """ Issues queryset acceptable by django paginator """
-
-            def filter(self, term):
-                if term:
-                    escaped_term = re.sub(r'([\^~*?\\:\(\)\[\]\{\}|!#&"+-])', r'\\\\\1', term)
-                    self.query_string = self.base_query_string + ' AND text ~ "%s"' % escaped_term
-                return self
-
-            def _fetch_items(self, offset=0, limit=1, force=False):
-                # Default limit is 1 because this extra query required
-                # only to determine the total number of items
-                if hasattr(self, 'items') and not force:
-                    return self.items
-
-                try:
-                    self.items = self.query_func(
-                        self.query_string,
-                        fields=self.fields,
-                        startAt=offset,
-                        maxResults=limit)
-                except JIRAError as e:
-                    logger.exception(
-                        'Failed to perform issues search with query "%s"', self.query_string)
-                    six.reraise(JiraBackendError, e)
-
-                return self.items
-
-            def __init__(self, jira, query_string, fields=None):
-                self.fields = fields
-                self.query_func = jira.search_issues
-                self.query_string = self.base_query_string = query_string
-
-            def __len__(self):
-                return self._fetch_items().total
-
-            def __iter__(self):
-                return self._fetch_items()
-
-            def __getitem__(self, val):
-                return self._fetch_items(offset=val.start, limit=val.stop - val.start, force=True)
-
-        def create(self, summary, description='', reporter='', assignee=None):
-            args = {
-                'summary': summary,
-                'description': description,
-                'project': {'key': self.manager.core_project},
-                'issuetype': {'name': self.manager.default_issue_type},
-            }
-
-            # Validate reporter & assignee before actual issue creation
-            if assignee:
-                assignee = self.manager.users.get(assignee)
-            if self.manager.reporter_field:
-                args[self.manager.reporter_field_id] = reporter
-            elif reporter:
-                reporter = self.manager.users.get(reporter)
-
+    @property
+    def manager(self):
+        try:
+            return getattr(self, '_manager')
+        except AttributeError:
             try:
-                issue = self.manager.jira.create_issue(fields=args)
-
-                if reporter and not self.manager.reporter_field:
-                    issue.update(reporter={'name': reporter.name})
-                if assignee:
-                    self.manager.jira.assign_issue(issue, assignee.key)
-
+                self._manager = JIRA(
+                    server=self.settings.backend_url,
+                    options={'verify': self.verify},
+                    basic_auth=(self.settings.username, self.settings.password),
+                    validate=False)
             except JIRAError as e:
-                logger.exception('Failed to create issue with summary "%s"', summary)
                 six.reraise(JiraBackendError, e)
 
-            return issue
+            return self._manager
 
-        def get_by_user(self, username, user_key):
+    def reraise_exceptions(func):
+        @functools.wraps(func)
+        def wrapped(self, *args, **kwargs):
             try:
-                issue = self.manager.jira.issue(user_key)
-            except JIRAError:
-                raise JiraBackendError("Can't find issue %s" % user_key)
-
-            if self.manager.reporter_field:
-                is_owner = getattr(issue.fields, self.manager.reporter_field_id) == username
-            else:
-                reporter = self.manager.users.get(username)
-                is_owner = issue.fields.reporter.key == reporter.key
-
-            if not is_owner:
-                raise JiraBackendError("Access denied to issue %s for user %s" % (user_key, username))
-
-            return issue
-
-        def list_by_user(self, username):
-            if self.manager.reporter_field:
-                query_string = "project = {} AND '{}' ~ '{}'".format(
-                    self.manager.core_project, self.manager.reporter_field, username)
-            else:
-                query_string = "project = {} AND reporter = {}".format(
-                    self.manager.core_project, username)
-            query_string += " order by updated desc"
-
-            return self.IssueQuerySet(self.manager.jira, query_string)
-
-    class Comment(Resource):
-        """ JIRA issue comments resource """
-
-        def list(self, issue_key):
-            try:
-                return self.manager.jira.comments(issue_key)
+                return func(self, *args, **kwargs)
             except JIRAError as e:
-                logger.exception(
-                    'Failed to perform comments search for issue %s', issue_key)
                 six.reraise(JiraBackendError, e)
+        return wrapped
 
-        def create(self, issue_key, comment):
-            return self.manager.jira.add_comment(issue_key, comment)
+    @reraise_exceptions
+    def get_field_id_by_name(self, field_name):
+        if not field_name:
+            return None
+        try:
+            fields = getattr(self, '_fields')
+        except AttributeError:
+            fields = self._fields = self.manager.fields()
+        try:
+            return next(f['id'] for f in fields if field_name in f['clauseNames'])
+        except StopIteration:
+            raise JiraBackendError("Can't find custom field %s" % field_name)
 
-    class User(Resource):
-        """ JIRA users resource """
+    @reraise_exceptions
+    def get_project(self, project_id):
+        return self.manager.project(project_id)
 
-        def get(self, username):
-            try:
-                return self.manager.jira.user(username)
-            except JIRAError:
-                raise JiraBackendError("Unknown JIRA user %s" % username)
+    @reraise_exceptions
+    def create_project(self, project):
+        self.manager.create_project(project.backend_id, name=project.name, assignee=self.settings.username)
 
-    def __init__(self, *args, **kwargs):
-        super(JiraBackend, self).__init__(*args, **kwargs)
+    @reraise_exceptions
+    def update_project(self, project):
+        backend_project = self.manager.project(project.backend_id)
+        backend_project.update(name=project.name)
 
-        self.users = self.User(self)
-        self.issues = self.Issue(self)
-        self.comments = self.Comment(self)
+    @reraise_exceptions
+    def delete_project(self, project):
+        self.manager.delete_project(project.backend_id)
+
+    @reraise_exceptions
+    def create_issue(self, issue):
+        args = dict(
+            project=issue.project.backend_id,
+            summary=issue.summary,
+            description=issue.description,
+            issuetype={'name': self.default_issue_type},
+        )
+        if self.reporter_field:
+            args[self.get_field_id_by_name(self.reporter_field)] = issue.user.username
+
+        if self.impact_field and issue.impact:
+            args[self.get_field_id_by_name(self.impact_field)] = issue.get_impact_display()
+
+        if issue.priority:
+            mapping = getattr(settings, 'JIRA_PRIORITY_MAPPING', {})
+            priority = issue.get_priority_display()
+            args['priority'] = {'name': mapping.get(priority, priority)}
+
+        backend_issue = self.manager.create_issue(**args)
+        issue.updated_username = issue.user.username
+        issue.backend_id = backend_issue.key
+        issue.resolution = backend_issue.fields.resolution or ''
+        issue.status = backend_issue.fields.status.name or ''
+        issue.type = self.default_issue_type
+        issue.save(update_fields=['backend_id', 'resolution', 'status', 'type', 'updated_username'])
+
+    @reraise_exceptions
+    def update_issue(self, issue):
+        backend_issue = self.manager.issue(issue.backend_id)
+        backend_issue.update(summary=issue.summary, description=issue.description)
+
+    @reraise_exceptions
+    def delete_issue(self, issue):
+        self.manager.delete_issue(issue.backend_id)
+
+    @reraise_exceptions
+    def create_comment(self, comment):
+        backend_comment = self.manager.add_comment(comment.issue.backend_id, comment.prepare_message())
+        comment.backend_id = backend_comment.id
+        comment.save(update_fields=['backend_id'])
+
+    @reraise_exceptions
+    def update_comment(self, comment):
+        backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
+        backend_comment.update(body=comment.prepare_message())
+
+    @reraise_exceptions
+    def delete_comment(self, comment):
+        backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
+        backend_comment.delete()
+
+    @reraise_exceptions
+    def add_attachment(self, attachment):
+        backend_issue = self.manager.issue(attachment.issue.backend_id)
+        backend_attachment = self.manager.add_attachment(backend_issue, attachment.file)
+        attachment.backend_id = backend_attachment.id
+        attachment.save(update_fields=['backend_id'])
+
+    @reraise_exceptions
+    def remove_attachment(self, attachment):
+        backend_attachment = self.manager.attachment(attachment.backend_id)
+        backend_attachment.delete()
+
+    @reraise_exceptions
+    def import_project_issues(self, project):
+        impact_field = self.get_field_id_by_name(self.impact_field) if self.impact_field else None
+        for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
+            fields = backend_issue.fields
+            impact = getattr(fields, impact_field, None)
+            priority = fields.priority.name
+            issue = project.issues.create(
+                impact=self.convert_field(impact, project.issues.model.Impact.CHOICES),
+                type=fields.issuetype.name,
+                status=fields.status.name,
+                summary=fields.summary,
+                priority=self.convert_field(
+                    priority, project.issues.model.Priority.CHOICES, mapping_setting='JIRA_PRIORITY_MAPPING'),
+                description=fields.description or '',
+                resolution=fields.resolution or '',
+                updated_username=fields.creator.displayName,
+                backend_id=backend_issue.key,
+                created=parse_datetime(fields.created),
+                updated=parse_datetime(fields.updated),
+                state=project.issues.model.States.OK)
+
+            for backend_comment in self.manager.comments(backend_issue):
+                tmp = issue.comments.model()
+                tmp.clean_message(backend_comment.body)
+                issue.comments.create(
+                    user=tmp.user,
+                    message=tmp.message,
+                    created=parse_datetime(backend_comment.created),
+                    backend_id=backend_comment.id,
+                    state=issue.comments.model.States.OK)

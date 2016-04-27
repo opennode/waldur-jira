@@ -1,54 +1,75 @@
-from __future__ import unicode_literals
+import logging
 
-from rest_framework import viewsets, mixins, exceptions
+from rest_framework import filters, generics, permissions, viewsets
 
-from .client import SupportClient, JiraBackendError
-from .filters import IssueSearchFilter
-from .serializers import IssueSerializer, CommentSerializer
+from nodeconductor.core import mixins as core_mixins
+from nodeconductor.core import filters as core_filters
+from nodeconductor.structure import views as structure_views
+from nodeconductor.structure import filters as structure_filters
 
+from .filters import AttachmentFilter, IssueFilter, CommentFilter
+from . import executors, models, serializers
 
-class SupportMixin(object):
-
-    def initial(self, request, *args, **kwargs):
-        super(SupportMixin, self).initial(request, *args, **kwargs)
-        self.user_uuid = request.user.uuid.hex
-        self.client = SupportClient()
+logger = logging.getLogger(__name__)
 
 
-class IssueViewSet(SupportMixin, mixins.RetrieveModelMixin, mixins.ListModelMixin,
-                   mixins.CreateModelMixin, viewsets.GenericViewSet):
-    serializer_class = IssueSerializer
-    filter_backends = (IssueSearchFilter,)
+class JiraServiceViewSet(structure_views.BaseServiceViewSet):
+    queryset = models.JiraService.objects.all()
+    serializer_class = serializers.ServiceSerializer
+    import_serializer_class = serializers.ProjectImportSerializer
 
-    def get_queryset(self):
-        return self.client.issues.list_by_user(self.user_uuid)
 
-    def get_object(self):
+class JiraServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
+    queryset = models.JiraServiceProjectLink.objects.all()
+    serializer_class = serializers.ServiceProjectLinkSerializer
+
+
+class ProjectViewSet(structure_views.BaseResourceExecutorViewSet):
+    queryset = models.Project.objects.all()
+    serializer_class = serializers.ProjectSerializer
+    create_executor = executors.ProjectCreateExecutor
+    update_executor = executors.ProjectUpdateExecutor
+    delete_executor = executors.ProjectDeleteExecutor
+
+
+class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
+    queryset = models.Issue.objects.all()
+    filter_class = IssueFilter
+    serializer_class = serializers.IssueSerializer
+    create_executor = executors.IssueCreateExecutor
+    update_executor = executors.IssueUpdateExecutor
+    delete_executor = executors.IssueDeleteExecutor
+
+
+class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
+    queryset = models.Comment.objects.all()
+    filter_class = CommentFilter
+    serializer_class = serializers.CommentSerializer
+    create_executor = executors.CommentCreateExecutor
+    update_executor = executors.CommentUpdateExecutor
+    delete_executor = executors.CommentDeleteExecutor
+
+
+class AttachmentViewSet(core_mixins.CreateExecutorMixin, core_mixins.DeleteExecutorMixin, viewsets.ModelViewSet):
+    queryset = models.Attachment.objects.all()
+    filter_class = AttachmentFilter
+    filter_backends = structure_filters.GenericRoleFilter, filters.DjangoFilterBackend
+    permission_classes = permissions.IsAuthenticated, permissions.DjangoObjectPermissions
+    serializer_class = serializers.AttachmentSerializer
+    create_executor = executors.AttachmentCreateExecutor
+    delete_executor = executors.AttachmentDeleteExecutor
+    lookup_field = 'uuid'
+
+
+class WebHookReceiverViewSet(generics.CreateAPIView):
+    authentication_classes = ()
+    permission_classes = ()
+    serializer_class = serializers.WebHookReceiverSerializer
+
+    def create(self, request, *args, **kwargs):
         try:
-            return self.client.issues.get_by_user(self.user_uuid, self.kwargs['pk'])
-        except JiraBackendError as e:
-            raise exceptions.NotFound(e)
-
-    def perform_create(self, serializer):
-        try:
-            serializer.save(client=self.client, reporter=self.user_uuid)
-        except JiraBackendError as e:
-            raise exceptions.ValidationError(e)
-
-
-class CommentViewSet(SupportMixin, mixins.ListModelMixin,
-                     mixins.CreateModelMixin, viewsets.GenericViewSet):
-
-    serializer_class = CommentSerializer
-
-    def get_queryset(self):
-        try:
-            return self.client.comments.list(self.kwargs['pk'])
-        except JiraBackendError as e:
-            raise exceptions.NotFound(e)
-
-    def perform_create(self, serializer):
-        try:
-            serializer.save(client=self.client, issue=self.kwargs['pk'])
-        except JiraBackendError as e:
-            raise exceptions.ValidationError(e)
+            return super(WebHookReceiverViewSet, self).create(request, *args, **kwargs)
+        except Exception as e:
+            # Throw validation errors to the logs
+            logger.error("Can't parse JIRA WebHook request: %s" % e)
+            raise
