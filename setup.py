@@ -9,7 +9,7 @@ dev_requires = [
 
 install_requires = [
     'nodeconductor>0.92.0',
-    'jira>=1.0.6',
+    'jira>=1.0.4',
 ]
 
 
@@ -23,7 +23,7 @@ setup(
     long_description=open('README.rst').read(),
     package_dir={'': 'src'},
     packages=find_packages('src', exclude=['*.tests', '*.tests.*', 'tests.*', 'tests']),
-    dependency_links=['git+https://github.com/pycontribs/jira@6569a04ded2754ee216ae5ecb3bf61055fe6e054#egg=jira-1.0.6'],
+    dependency_links=['git+https://github.com/pycontribs/jira@e829da6980980e0291c5787442524edc822a94fb#egg=jira-1.0.4'],
     install_requires=install_requires,
     zip_safe=False,
     extras_require={
