@@ -17,7 +17,7 @@ class ProjectUpdateExecutor(executors.UpdateExecutor):
             serialized_project, 'update_project', state_transition='begin_updating')
 
 
-class ProjectImportExecutor(executors.CreateExecutor):
+class ProjectImportExecutor(executors.UpdateExecutor):
 
     @classmethod
     def get_task_signature(cls, project, serialized_project, **kwargs):
