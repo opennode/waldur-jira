@@ -191,6 +191,7 @@ class JiraBackend(JiraBaseBackend):
     def import_project_issues(self, project):
         impact_field = self.get_field_id_by_name(self.impact_field) if self.impact_field else None
         for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
+            backend_issue._parse_raw(backend_issue.raw)  # XXX: deal with weird issue in JIRA 1.0.4
             fields = backend_issue.fields
             impact = getattr(fields, impact_field, None)
             priority = fields.priority.name
