@@ -50,3 +50,13 @@ class AttachmentFilter(django_filters.FilterSet):
         fields = [
             'issue_key',
         ]
+
+
+class ProjectFilter(django_filters.FilterSet):
+    available_for_all = django_filters.BooleanFilter()
+
+    class Meta(object):
+        model = Comment
+        fields = [
+            'available_for_all',
+        ]
