@@ -1,6 +1,6 @@
 import django_filters
 
-from .models import Attachment, Comment, Issue
+from .models import Attachment, Comment, Issue, Project
 
 
 class IssueFilter(django_filters.FilterSet):
@@ -56,7 +56,7 @@ class ProjectFilter(django_filters.FilterSet):
     available_for_all = django_filters.BooleanFilter()
 
     class Meta(object):
-        model = Comment
+        model = Project
         fields = [
             'available_for_all',
         ]
