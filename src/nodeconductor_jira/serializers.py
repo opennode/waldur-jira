@@ -91,7 +91,7 @@ class JiraPropertySerializer(AugmentedSerializerMixin, serializers.HyperlinkedMo
     class Meta(object):
         model = NotImplemented
         fields = (
-            'url', 'uuid', 'user', 'user_uuid', 'user_name', 'user_email', 'state'
+            'url', 'uuid', 'user', 'user_uuid', 'user_name', 'user_email', 'state', 'error_message'
         )
         read_only_fields = 'uuid', 'user'
         extra_kwargs = {
