@@ -3,11 +3,10 @@ import logging
 from rest_framework import filters, generics, permissions, viewsets
 
 from nodeconductor.core import mixins as core_mixins
-from nodeconductor.core import filters as core_filters
 from nodeconductor.structure import views as structure_views
 from nodeconductor.structure import filters as structure_filters
 
-from .filters import AttachmentFilter, IssueFilter, CommentFilter
+from .filters import AttachmentFilter, IssueFilter, CommentFilter, ProjectFilter
 from . import executors, models, serializers
 
 logger = logging.getLogger(__name__)
@@ -26,6 +25,7 @@ class JiraServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSe
 
 class ProjectViewSet(structure_views.BaseResourceExecutorViewSet):
     queryset = models.Project.objects.all()
+    filter_class = ProjectFilter
     serializer_class = serializers.ProjectSerializer
     create_executor = executors.ProjectCreateExecutor
     update_executor = executors.ProjectUpdateExecutor
