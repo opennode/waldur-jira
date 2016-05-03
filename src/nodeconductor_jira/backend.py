@@ -157,7 +157,8 @@ class JiraBackend(JiraBaseBackend):
 
     @reraise_exceptions
     def delete_issue(self, issue):
-        self.manager.delete_issue(issue.backend_id)
+        backend_issue = self.manager.issue(issue.backend_id)
+        backend_issue.delete()
 
     @reraise_exceptions
     def create_comment(self, comment):
