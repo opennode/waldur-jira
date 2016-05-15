@@ -5,6 +5,7 @@ from django.db import models
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils.encoding import python_2_unicode_compatible
+from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from nodeconductor.core import models as core_models
@@ -111,6 +112,8 @@ class Issue(LoggableMixin, JiraPropertyIssue):
     status = models.CharField(max_length=255)
     updated = models.DateTimeField(auto_now_add=True)
     updated_username = models.CharField(max_length=255, blank=True)
+
+    tracker = FieldTracker()
 
     @property
     def key(self):

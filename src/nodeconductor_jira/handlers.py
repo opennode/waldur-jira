@@ -1,5 +1,6 @@
 from .executors import ProjectImportExecutor
 from .log import event_logger
+from .models import Issue
 
 
 def import_project_issues(sender, instance, **kwargs):
@@ -7,20 +8,25 @@ def import_project_issues(sender, instance, **kwargs):
 
 
 def log_issue_save(sender, instance, created=False, **kwargs):
-    if created:
-        event_logger.jira_issue.info(
-            'Issue {issue_key} has been created.',
-            event_type='issue_creation_succeeded',
-            event_context={
-                'issue': instance,
-            })
+    if created or instance.state == Issue.States.CREATING:
+        # we skip logging on instance creation as backend_id/JIRA key is not known yet
+        pass
     else:
-        event_logger.jira_issue.info(
-            'Issue {issue_key} has been updated.',
-            event_type='issue_update_succeeded',
-            event_context={
-                'issue': instance,
-            })
+        if instance.tracker.previous('state') == Issue.States.CREATING and \
+                instance.state == Issue.States.OK:
+                event_logger.jira_issue.info(
+                    'Issue {issue_key} has been created.',
+                    event_type='issue_creation_succeeded',
+                    event_context={
+                        'issue': instance,
+                    })
+        else:
+            event_logger.jira_issue.info(
+                'Issue {issue_key} has been updated.',
+                event_type='issue_update_succeeded',
+                event_context={
+                    'issue': instance,
+                })
 
 
 def log_issue_delete(sender, instance, **kwargs):
