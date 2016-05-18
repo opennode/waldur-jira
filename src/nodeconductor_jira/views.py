@@ -30,6 +30,7 @@ class ProjectViewSet(structure_views.BaseResourceExecutorViewSet):
     create_executor = executors.ProjectCreateExecutor
     update_executor = executors.ProjectUpdateExecutor
     delete_executor = executors.ProjectDeleteExecutor
+    async_executor = False
 
 
 class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
@@ -39,6 +40,7 @@ class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     create_executor = executors.IssueCreateExecutor
     update_executor = executors.IssueUpdateExecutor
     delete_executor = executors.IssueDeleteExecutor
+    async_executor = False
 
 
 class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
@@ -48,6 +50,7 @@ class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     create_executor = executors.CommentCreateExecutor
     update_executor = executors.CommentUpdateExecutor
     delete_executor = executors.CommentDeleteExecutor
+    async_executor = False
 
 
 class AttachmentViewSet(core_mixins.CreateExecutorMixin, core_mixins.DeleteExecutorMixin, viewsets.ModelViewSet):
@@ -58,6 +61,7 @@ class AttachmentViewSet(core_mixins.CreateExecutorMixin, core_mixins.DeleteExecu
     serializer_class = serializers.AttachmentSerializer
     create_executor = executors.AttachmentCreateExecutor
     delete_executor = executors.AttachmentDeleteExecutor
+    async_executor = False
     lookup_field = 'uuid'
 
 
