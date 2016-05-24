@@ -5,6 +5,7 @@ from django.db import models
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils.encoding import python_2_unicode_compatible
+from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from nodeconductor.core import models as core_models
@@ -112,9 +113,7 @@ class Issue(LoggableMixin, JiraPropertyIssue):
     updated = models.DateTimeField(auto_now_add=True)
     updated_username = models.CharField(max_length=255, blank=True)
 
-    @property
-    def key(self):
-        return self.backend_id
+    tracker = FieldTracker()
 
     def get_backend(self):
         return self.project.get_backend()
@@ -123,12 +122,24 @@ class Issue(LoggableMixin, JiraPropertyIssue):
     def get_url_name(cls):
         return 'jira-issues'
 
+    @property
+    def key(self):
+        return self.backend_id
+
+    @property
+    def issue_user(self):
+        return self.user  # XXX: avoid logging conflicts
+
+    @property
+    def issue_project(self):
+        return self.project  # XXX: avoid logging conflicts
+
     def get_access_url(self):
         base_url = self.project.service_project_link.service.settings.backend_url
         return urlparse.urljoin(base_url, 'browse/' + self.backend_id)
 
     def get_log_fields(self):
-        return ('uuid', 'user', 'key', 'summary', 'status')
+        return ('uuid', 'issue_user', 'key', 'summary', 'status', 'issue_project')
 
     def __str__(self):
         return '{}: {}'.format(self.backend_id or '???', self.summary)
@@ -158,8 +169,12 @@ class Comment(LoggableMixin, JiraSubPropertyIssue):
     def get_url_name(cls):
         return 'jira-comments'
 
+    @property
+    def comment_user(self):
+        return self.user  # XXX: avoid logging conflicts
+
     def get_log_fields(self):
-        return ('uuid', 'user', 'issue')
+        return ('uuid', 'comment_user', 'issue')
 
     def clean_message(self, message):
         template = getattr(settings, 'JIRA_COMMENT_TEMPLATE', None)
@@ -189,7 +204,7 @@ class Comment(LoggableMixin, JiraSubPropertyIssue):
         return self.message
 
     def __str__(self):
-        return '{}: {}'.format(self.issue.backend_id or '???', self.message)
+        return '{}: {}'.format(self.issue.backend_id or '???', self.backend_id)
 
 
 class Attachment(JiraSubPropertyIssue):

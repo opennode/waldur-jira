@@ -3,11 +3,10 @@ import logging
 from rest_framework import filters, generics, permissions, viewsets
 
 from nodeconductor.core import mixins as core_mixins
-from nodeconductor.core import filters as core_filters
 from nodeconductor.structure import views as structure_views
 from nodeconductor.structure import filters as structure_filters
 
-from .filters import AttachmentFilter, IssueFilter, CommentFilter
+from .filters import AttachmentFilter, IssueFilter, CommentFilter, ProjectFilter
 from . import executors, models, serializers
 
 logger = logging.getLogger(__name__)
@@ -26,10 +25,12 @@ class JiraServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSe
 
 class ProjectViewSet(structure_views.BaseResourceExecutorViewSet):
     queryset = models.Project.objects.all()
+    filter_class = ProjectFilter
     serializer_class = serializers.ProjectSerializer
     create_executor = executors.ProjectCreateExecutor
     update_executor = executors.ProjectUpdateExecutor
     delete_executor = executors.ProjectDeleteExecutor
+    async_executor = False
 
 
 class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
@@ -39,6 +40,7 @@ class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     create_executor = executors.IssueCreateExecutor
     update_executor = executors.IssueUpdateExecutor
     delete_executor = executors.IssueDeleteExecutor
+    async_executor = False
 
 
 class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
@@ -48,6 +50,7 @@ class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     create_executor = executors.CommentCreateExecutor
     update_executor = executors.CommentUpdateExecutor
     delete_executor = executors.CommentDeleteExecutor
+    async_executor = False
 
 
 class AttachmentViewSet(core_mixins.CreateExecutorMixin, core_mixins.DeleteExecutorMixin, viewsets.ModelViewSet):
@@ -58,6 +61,7 @@ class AttachmentViewSet(core_mixins.CreateExecutorMixin, core_mixins.DeleteExecu
     serializer_class = serializers.AttachmentSerializer
     create_executor = executors.AttachmentCreateExecutor
     delete_executor = executors.AttachmentDeleteExecutor
+    async_executor = False
     lookup_field = 'uuid'
 
 

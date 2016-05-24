@@ -1,10 +1,17 @@
 from ddt import ddt, data
 from rest_framework import test, status
 
+from nodeconductor_jira import views
 from nodeconductor_jira.models import Issue
 from nodeconductor_jira.tests import factories
 from nodeconductor.structure.models import CustomerRole, ProjectRole, ProjectGroupRole
 from nodeconductor.structure.tests import factories as structure_factories
+
+
+views.ProjectViewSet.async_executor = True
+views.IssueViewSet.async_executor = True
+views.CommentViewSet.async_executor = True
+views.AttachmentViewSet.async_executor = True
 
 
 @ddt
