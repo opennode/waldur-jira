@@ -5,6 +5,7 @@ from .models import Attachment, Comment, Issue, Project
 
 class IssueFilter(django_filters.FilterSet):
     summary = django_filters.CharFilter(lookup_type='icontains')
+    description = django_filters.CharFilter(lookup_type='icontains')
     project_key = django_filters.CharFilter(name='project__backend_id')
     user_uuid = django_filters.CharFilter(name='user__uuid')
     key = django_filters.CharFilter(name='backend_id')
@@ -15,6 +16,7 @@ class IssueFilter(django_filters.FilterSet):
         fields = [
             'key',
             'summary',
+            'description',
             'project_key',
             'user_uuid',
             'status',
