@@ -9,7 +9,6 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from nodeconductor.core import models as core_models
-from nodeconductor.logging.loggers import LoggableMixin
 from nodeconductor.structure import models as structure_models
 
 
@@ -74,7 +73,8 @@ class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStamp
 
 
 @python_2_unicode_compatible
-class Issue(LoggableMixin, JiraPropertyIssue):
+class Issue(structure_models.StructureLoggableMixin,
+            JiraPropertyIssue):
 
     class Priority:
         UNKNOWN = 0
@@ -158,7 +158,8 @@ class JiraSubPropertyIssue(JiraPropertyIssue):
 
 
 @python_2_unicode_compatible
-class Comment(LoggableMixin, JiraSubPropertyIssue):
+class Comment(structure_models.StructureLoggableMixin,
+              JiraSubPropertyIssue):
     issue = models.ForeignKey(Issue, related_name='comments')
     message = models.TextField(blank=True)
 
