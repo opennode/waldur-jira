@@ -91,9 +91,9 @@ class JiraPropertySerializer(AugmentedSerializerMixin, serializers.HyperlinkedMo
     class Meta(object):
         model = NotImplemented
         fields = (
-            'url', 'uuid', 'user', 'user_uuid', 'user_name', 'user_email', 'state'
+            'url', 'uuid', 'user', 'user_uuid', 'user_name', 'user_email', 'state', 'error_message'
         )
-        read_only_fields = 'uuid', 'user'
+        read_only_fields = 'uuid', 'user', 'error_message'
         extra_kwargs = {
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
         }
@@ -158,7 +158,7 @@ class IssueSerializer(JiraPropertySerializer):
             'type', 'priority', 'impact', 'created', 'updated', 'updated_username',
             'access_url', 'comments',
         )
-        read_only_fields = 'type', 'status', 'resolution', 'updated_username'
+        read_only_fields = 'type', 'status', 'resolution', 'updated_username', 'error_message'
         protected_fields = 'project', 'key'
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
@@ -170,10 +170,10 @@ class IssueSerializer(JiraPropertySerializer):
             **JiraPropertySerializer.Meta.related_paths
         )
 
+
 #
 # Serializers below are used by webhook only
 #
-
 
 class UnixTimeField(serializers.IntegerField):
 
