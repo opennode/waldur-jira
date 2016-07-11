@@ -10,6 +10,9 @@ class IssueEventLogger(EventLogger):
         event_types = ('issue_deletion_succeeded',
                        'issue_update_succeeded',
                        'issue_creation_succeeded')
+        event_groups = {
+            'jira': event_types
+        }
 
 
 class CommentEventLogger(EventLogger):
@@ -19,6 +22,9 @@ class CommentEventLogger(EventLogger):
         event_types = ('comment_deletion_succeeded',
                        'comment_update_succeeded',
                        'comment_creation_succeeded')
+        event_groups = {
+            'jira': event_types
+        }
 
 
 event_logger.register('jira_issue', IssueEventLogger)
