@@ -101,16 +101,28 @@ class IssuePermissionTest(BasePermissionTest):
         self.issue_url = factories.IssueFactory.get_url(self.issue)
 
     def test_staff_can_list_all_issues(self):
+        """
+        Issues without author are listed too.
+        """
+        issue_without_user = factories.IssueFactory()
         self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
         response = self.client.get(factories.IssueFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['uuid'], self.issue.uuid.hex)
+        self.assertEqual(len(response.data), 2)
+        self.assertTrue(issue_without_user.uuid.hex in [issue['uuid'] for issue in response.data])
+        self.assertTrue(self.issue.uuid.hex in [issue['uuid'] for issue in response.data])
 
     def test_staff_can_get_issue(self):
         self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
         response = self.client.get(self.issue_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_author_can_list_its_own_issues(self):
+        self.client.force_authenticate(self.author)
+        response = self.client.get(factories.IssueFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertTrue(self.issue.uuid.hex in [issue['uuid'] for issue in response.data])
 
     def test_author_can_get_issue(self):
         self.client.force_authenticate(self.author)
