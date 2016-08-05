@@ -23,6 +23,16 @@ class JiraServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSe
     serializer_class = serializers.ServiceProjectLinkSerializer
 
 
+class JiraPermissionMixin(object):
+    def get_queryset(self):
+        user = self.request.user
+        queryset = super(JiraPermissionMixin, self).get_queryset()
+        if user.is_staff:
+            return queryset
+        else:
+            return queryset.filter(user=user)
+
+
 class ProjectViewSet(structure_views.BaseResourceExecutorViewSet):
     queryset = models.Project.objects.all()
     filter_class = ProjectFilter
@@ -33,7 +43,8 @@ class ProjectViewSet(structure_views.BaseResourceExecutorViewSet):
     async_executor = False
 
 
-class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
+class IssueViewSet(JiraPermissionMixin,
+                   structure_views.BaseResourcePropertyExecutorViewSet):
     queryset = models.Issue.objects.all()
     filter_class = IssueFilter
     serializer_class = serializers.IssueSerializer
@@ -43,7 +54,8 @@ class IssueViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     async_executor = False
 
 
-class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
+class CommentViewSet(JiraPermissionMixin,
+                     structure_views.BaseResourcePropertyExecutorViewSet):
     queryset = models.Comment.objects.all()
     filter_class = CommentFilter
     serializer_class = serializers.CommentSerializer
@@ -53,7 +65,10 @@ class CommentViewSet(structure_views.BaseResourcePropertyExecutorViewSet):
     async_executor = False
 
 
-class AttachmentViewSet(core_mixins.CreateExecutorMixin, core_mixins.DeleteExecutorMixin, viewsets.ModelViewSet):
+class AttachmentViewSet(JiraPermissionMixin,
+                        core_mixins.CreateExecutorMixin,
+                        core_mixins.DeleteExecutorMixin,
+                        viewsets.ModelViewSet):
     queryset = models.Attachment.objects.all()
     filter_class = AttachmentFilter
     filter_backends = structure_filters.GenericRoleFilter, filters.DjangoFilterBackend
