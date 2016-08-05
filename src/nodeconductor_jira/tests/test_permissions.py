@@ -14,8 +14,7 @@ views.CommentViewSet.async_executor = True
 views.AttachmentViewSet.async_executor = True
 
 
-@ddt
-class ProjectPermissionTest(test.APITransactionTestCase):
+class BasePermissionTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.users = {
@@ -42,6 +41,10 @@ class ProjectPermissionTest(test.APITransactionTestCase):
         self.spl = factories.JiraServiceProjectLinkFactory(service=service, project=self.project)
         self.project = factories.ProjectFactory(service_project_link=self.spl)
         self.global_project = factories.ProjectFactory(service_project_link=self.spl, available_for_all=True)
+
+
+@ddt
+class ProjectPermissionTest(BasePermissionTest):
 
     @data('owner', 'admin', 'manager', 'group_manager')
     def test_user_with_access_can_access_project(self, user):
@@ -74,38 +77,6 @@ class ProjectPermissionTest(test.APITransactionTestCase):
             self._get_issue_payload(self.global_project))
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_issue_permissions_in_global_project(self):
-        self.client.force_authenticate(self.users['manager'])
-
-        response = self.client.post(
-            factories.IssueFactory.get_list_url(),
-            self._get_issue_payload(self.global_project))
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        issue_url = response.data['url']
-        issue = Issue.objects.get(uuid=response.data['uuid'])
-        issue.state = Issue.States.OK
-        issue.save()
-
-        self.client.force_authenticate(self.users['manager'])
-        response = self.client.patch(issue_url, {'description': 'do it'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.client.force_authenticate(self.users['no_role'])
-        response = self.client.get(issue_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.client.force_authenticate(self.users['no_role'])
-        response = self.client.delete(issue_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        issue.state = Issue.States.OK
-        issue.save()
-
-        self.client.force_authenticate(self.users['owner'])
-        response = self.client.delete(issue_url)
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-
     def _get_issue_payload(self, project):
         return {
             'project': factories.ProjectFactory.get_url(project),
@@ -114,3 +85,60 @@ class ProjectPermissionTest(test.APITransactionTestCase):
             'priority': 'Minor',
             'impact': 'Small - Partial loss of service, one person affected',
         }
+
+
+class IssuePermissionTest(BasePermissionTest):
+    def setUp(self):
+        super(IssuePermissionTest, self).setUp()
+        self.author = self.users['manager']
+        self.non_author = self.users['no_role']
+
+        self.issue = factories.IssueFactory(
+            project=self.global_project,
+            state=Issue.States.OK,
+            user=self.author
+        )
+        self.issue_url = factories.IssueFactory.get_url(self.issue)
+
+    def test_staff_can_list_all_issues(self):
+        self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
+        response = self.client.get(factories.IssueFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.issue.uuid.hex)
+
+    def test_staff_can_get_issue(self):
+        self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
+        response = self.client.get(self.issue_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_author_can_get_issue(self):
+        self.client.force_authenticate(self.author)
+        response = self.client.get(self.issue_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_author_can_patch_issue(self):
+        self.client.force_authenticate(self.author)
+        response = self.client.patch(self.issue_url, {'description': 'do it'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_author_can_delete_issue(self):
+        self.client.force_authenticate(self.author)
+        response = self.client.delete(self.issue_url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_non_author_can_not_list_other_issues(self):
+        self.client.force_authenticate(self.non_author)
+        response = self.client.get(factories.IssueFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_non_author_can_not_get_issue(self):
+        self.client.force_authenticate(self.non_author)
+        response = self.client.get(self.issue_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_non_author_can_not_delete_issue(self):
+        self.client.force_authenticate(self.non_author)
+        response = self.client.delete(self.issue_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
