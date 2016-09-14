@@ -7,7 +7,7 @@ from django.utils.timezone import utc
 import django.utils.timezone
 from django.conf import settings
 import django_fsm
-import uuidfield.fields
+import nodeconductor.core.fields
 import model_utils.fields
 
 
@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
                 ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, verbose_name='created', editable=False)),
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, verbose_name='modified', editable=False)),
-                ('uuid', uuidfield.fields.UUIDField(unique=True, max_length=32, editable=False, blank=True)),
+                ('uuid', nodeconductor.core.fields.UUIDField()),
                 ('error_message', models.TextField(blank=True)),
                 ('state', django_fsm.FSMIntegerField(default=5, choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')])),
                 ('file', models.FileField(upload_to=b'jira_attachments')),
