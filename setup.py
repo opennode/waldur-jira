@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import sys
 from setuptools import setup, find_packages
 
 
@@ -8,7 +7,7 @@ dev_requires = [
 ]
 
 install_requires = [
-    'nodeconductor>0.102.0',
+    'nodeconductor>0.105.0',
     'jira>=1.0.4',
 ]
 
