@@ -23,7 +23,7 @@ API
 License
 -------
 
-NodeConductor JIRA plugin is open-source under Apache v2 license.
+NodeConductor JIRA plugin is open-source under MIT license.
 
 
 Indices and tables

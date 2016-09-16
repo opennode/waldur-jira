@@ -1,21 +1,23 @@
 #!/usr/bin/env python
-import sys
 from setuptools import setup, find_packages
 
+test_requires = [
+    'ddt>=1.0.0'
+]
 
 dev_requires = [
     'Sphinx==1.2.2',
 ]
 
 install_requires = [
-    'nodeconductor>0.102.0',
+    'nodeconductor>=0.107.0',
     'jira>=1.0.4',
 ]
 
 
 setup(
     name='nodeconductor-jira',
-    version='0.3.3',
+    version='0.4.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://nodeconductor.com',
@@ -28,6 +30,7 @@ setup(
     zip_safe=False,
     extras_require={
         'dev': dev_requires,
+        'test': test_requires,
     },
     entry_points={
         'nodeconductor_extensions': (
@@ -40,6 +43,6 @@ setup(
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
         'Operating System :: OS Independent',
-        'License :: OSI Approved :: Apache Software License',
+        'License :: OSI Approved :: MIT License',
     ],
 )
