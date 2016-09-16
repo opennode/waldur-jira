@@ -17,7 +17,7 @@ install_requires = [
 
 setup(
     name='nodeconductor-jira',
-    version='0.3.3',
+    version='0.4.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://nodeconductor.com',

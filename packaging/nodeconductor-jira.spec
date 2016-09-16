@@ -1,7 +1,7 @@
 Name: nodeconductor-jira
 Summary: JIRA plugin for NodeConductor
 Group: Development/Libraries
-Version: 0.3.3
+Version: 0.4.0
 Release: 1.el7
 License: MIT
 Url: http://nodeconductor.com
