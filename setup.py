@@ -10,7 +10,7 @@ dev_requires = [
 ]
 
 install_requires = [
-    'nodeconductor>=0.107.0',
+    'nodeconductor>0.109.0',
     'jira>=1.0.4',
 ]
 
