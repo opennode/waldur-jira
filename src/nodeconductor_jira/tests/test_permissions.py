@@ -2,7 +2,7 @@ from ddt import ddt, data
 from rest_framework import test, status
 
 from nodeconductor_jira import views
-from nodeconductor_jira.models import Issue
+from nodeconductor_jira.models import Issue, Project
 from nodeconductor_jira.tests import factories
 from nodeconductor.structure.models import CustomerRole, ProjectRole, ProjectGroupRole
 from nodeconductor.structure.tests import factories as structure_factories
@@ -40,7 +40,9 @@ class BasePermissionTest(test.APITransactionTestCase):
         service = factories.JiraServiceFactory(customer=self.customer)
         self.spl = factories.JiraServiceProjectLinkFactory(service=service, project=self.project)
         self.project = factories.ProjectFactory(service_project_link=self.spl)
-        self.global_project = factories.ProjectFactory(service_project_link=self.spl, available_for_all=True)
+        self.global_project = factories.ProjectFactory(service_project_link=self.spl,
+                                                       available_for_all=True,
+                                                       state=Project.States.OK)
 
 
 @ddt

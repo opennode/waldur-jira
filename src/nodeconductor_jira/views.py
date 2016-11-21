@@ -1,6 +1,6 @@
 import logging
 
-from rest_framework import filters, generics, permissions, viewsets
+from rest_framework import exceptions, filters, generics, permissions, viewsets
 
 from nodeconductor.core import mixins as core_mixins
 from nodeconductor.structure import views as structure_views
@@ -41,6 +41,10 @@ class ProjectViewSet(structure_views.BaseResourceExecutorViewSet):
     update_executor = executors.ProjectUpdateExecutor
     delete_executor = executors.ProjectDeleteExecutor
     async_executor = False
+
+    def check_operation(self, request, resource, action):
+        if action == 'destroy' and not request.user.is_staff:
+            raise exceptions.PermissionDenied()
 
 
 class IssueViewSet(JiraPermissionMixin,
