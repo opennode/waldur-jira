@@ -96,7 +96,7 @@ Troubleshooting
 
 If service settings has error message "JIRA CAPTCHA is triggered", you should perform following actions:
 
-1. change email address of test user to something accessable.
+1. change email address of test user to something accessible.
    Do not put to the same as you already have in the same JIRA!
 2. reset password (sends reset email)
 3. use link
