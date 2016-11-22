@@ -49,6 +49,14 @@ class JiraBaseBackend(ServiceBackend):
         } for proj in self.manager.projects()]
 
 
+def check_captcha(e):
+    if e.response is None:
+        return False
+    if not hasattr(e.response, 'headers'):
+        return False
+    return e.response.headers['X-Seraph-LoginReason'] == 'AUTHENTICATED_FAILED'
+
+
 class JiraBackend(JiraBaseBackend):
     """ NodeConductor interface to JIRA.
         http://pythonhosted.org/jira/
@@ -80,6 +88,8 @@ class JiraBackend(JiraBaseBackend):
                     basic_auth=(self.settings.username, self.settings.password),
                     validate=False)
             except JIRAError as e:
+                if check_captcha(e):
+                    raise JiraBackendError('JIRA CAPTCHA is triggered. Please reset credentials.')
                 six.reraise(JiraBackendError, e)
 
             return self._manager
