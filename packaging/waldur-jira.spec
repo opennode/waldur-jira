@@ -1,13 +1,15 @@
-Name: nodeconductor-jira
-Summary: JIRA plugin for NodeConductor
+Name: waldur-jira
+Summary: JIRA plugin for Waldur
 Group: Development/Libraries
 Version: 0.4.0
 Release: 1.el7
 License: MIT
-Url: http://nodeconductor.com
+Url: http://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: nodeconductor > 0.109.0
+Obsoletes: waldur-jira
+
+Requires: nodeconductor >= 0.150.2
 Requires: python-jira >= 1.0.4
 
 BuildArch: noarch

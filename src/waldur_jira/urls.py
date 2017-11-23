@@ -1,4 +1,4 @@
-from django.conf.urls import patterns, url
+from django.conf.urls import url
 
 from . import views
 
@@ -12,7 +12,6 @@ def register_in(router):
     router.register(r'jira-comments', views.CommentViewSet, base_name='jira-comments')
 
 
-urlpatterns = patterns(
-    '',
+urlpatterns = [
     url(r'^api/jira-webhook-receiver/$', views.WebHookReceiverViewSet.as_view()),
-)
+]

@@ -1,4 +1,4 @@
-Welcome to NodeConductor JIRA plugin's documentation!
+Welcome to Waldur JIRA plugin's documentation!
 =====================================================
 
 Plugin for interaction and management of Atlassian JIRA.
@@ -23,7 +23,7 @@ API
 License
 -------
 
-NodeConductor JIRA plugin is open-source under MIT license.
+Waldur JIRA plugin is open-source under MIT license.
 
 
 Indices and tables

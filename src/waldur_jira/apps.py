@@ -3,7 +3,7 @@ from django.db.models import signals
 
 
 class JiraConfig(AppConfig):
-    name = 'nodeconductor_jira'
+    name = 'waldur_jira'
     verbose_name = 'JIRA'
     service_name = 'JIRA'
 
@@ -22,29 +22,29 @@ class JiraConfig(AppConfig):
         resource_imported.connect(
             handlers.import_project_issues,
             sender=Project,
-            dispatch_uid='nodeconductor_jira.handlers.import_project_issues',
+            dispatch_uid='waldur_jira.handlers.import_project_issues',
         )
 
         signals.post_save.connect(
             handlers.log_issue_save,
             sender=Issue,
-            dispatch_uid='nodeconductor_jira.handlers.log_issue_save',
+            dispatch_uid='waldur_jira.handlers.log_issue_save',
         )
 
         signals.post_delete.connect(
             handlers.log_issue_delete,
             sender=Issue,
-            dispatch_uid='nodeconductor_jira.handlers.log_issue_delete',
+            dispatch_uid='waldur_jira.handlers.log_issue_delete',
         )
 
         signals.post_save.connect(
             handlers.log_comment_save,
             sender=Comment,
-            dispatch_uid='nodeconductor_jira.handlers.log_comment_save',
+            dispatch_uid='waldur_jira.handlers.log_comment_save',
         )
 
         signals.post_delete.connect(
             handlers.log_comment_delete,
             sender=Comment,
-            dispatch_uid='nodeconductor_jira.handlers.log_comment_delete',
+            dispatch_uid='waldur_jira.handlers.log_comment_delete',
         )
