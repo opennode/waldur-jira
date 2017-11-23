@@ -12,7 +12,6 @@ class JiraServiceFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.JiraService
 
-    name = factory.Sequence(lambda n: 'service%s' % n)
     settings = factory.SubFactory(structure_factories.ServiceSettingsFactory, type=JiraConfig.service_name, backend_url='http://jira/')
     customer = factory.SubFactory(structure_factories.CustomerFactory)
 
