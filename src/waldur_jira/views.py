@@ -1,13 +1,14 @@
 import logging
 
-from rest_framework import filters, generics, permissions, viewsets
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import generics, permissions, viewsets
 
 from nodeconductor.core import mixins as core_mixins
-from nodeconductor.structure import views as structure_views
 from nodeconductor.structure import filters as structure_filters
+from nodeconductor.structure import permissions as structure_permissions
+from nodeconductor.structure import views as structure_views
 
-from .filters import AttachmentFilter, IssueFilter, CommentFilter, ProjectFilter
-from . import executors, models, serializers
+from . import filters, executors, models, serializers
 
 logger = logging.getLogger(__name__)
 
@@ -33,20 +34,22 @@ class JiraPermissionMixin(object):
             return queryset.filter(user=user)
 
 
-class ProjectViewSet(structure_views.BaseResourceExecutorViewSet):
+class ProjectViewSet(structure_views.ResourceViewSet):
     queryset = models.Project.objects.all()
-    filter_class = ProjectFilter
+    filter_class = filters.ProjectFilter
     serializer_class = serializers.ProjectSerializer
     create_executor = executors.ProjectCreateExecutor
     update_executor = executors.ProjectUpdateExecutor
     delete_executor = executors.ProjectDeleteExecutor
     async_executor = False
 
+    destroy_permissions = [structure_permissions.is_staff]
+
 
 class IssueViewSet(JiraPermissionMixin,
-                   structure_views.BaseResourcePropertyExecutorViewSet):
+                   structure_views.ResourceViewSet):
     queryset = models.Issue.objects.all()
-    filter_class = IssueFilter
+    filter_class = filters.IssueFilter
     serializer_class = serializers.IssueSerializer
     create_executor = executors.IssueCreateExecutor
     update_executor = executors.IssueUpdateExecutor
@@ -55,9 +58,9 @@ class IssueViewSet(JiraPermissionMixin,
 
 
 class CommentViewSet(JiraPermissionMixin,
-                     structure_views.BaseResourcePropertyExecutorViewSet):
+                     structure_views.ResourceViewSet):
     queryset = models.Comment.objects.all()
-    filter_class = CommentFilter
+    filter_class = filters.CommentFilter
     serializer_class = serializers.CommentSerializer
     create_executor = executors.CommentCreateExecutor
     update_executor = executors.CommentUpdateExecutor
@@ -70,8 +73,8 @@ class AttachmentViewSet(JiraPermissionMixin,
                         core_mixins.DeleteExecutorMixin,
                         viewsets.ModelViewSet):
     queryset = models.Attachment.objects.all()
-    filter_class = AttachmentFilter
-    filter_backends = structure_filters.GenericRoleFilter, filters.DjangoFilterBackend
+    filter_class = filters.AttachmentFilter
+    filter_backends = structure_filters.GenericRoleFilter, DjangoFilterBackend
     permission_classes = permissions.IsAuthenticated, permissions.DjangoObjectPermissions
     serializer_class = serializers.AttachmentSerializer
     create_executor = executors.AttachmentCreateExecutor

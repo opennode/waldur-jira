@@ -65,7 +65,6 @@ class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStamp
     class Permissions(object):
         customer_path = 'project__service_project_link__project__customer'
         project_path = 'project__service_project_link__project'
-        project_group_path = 'project__service_project_link__project__project_groups'
         extra_query = dict(project__available_for_all=True)
 
     class Meta(object):
@@ -150,7 +149,6 @@ class JiraSubPropertyIssue(JiraPropertyIssue):
     class Permissions(object):
         customer_path = 'issue__project__service_project_link__project__customer'
         project_path = 'issue__project__service_project_link__project'
-        project_group_path = 'issue__project__service_project_link__project__project_groups'
         extra_query = dict(issue__project__available_for_all=True)
 
     class Meta(object):
@@ -178,7 +176,7 @@ class Comment(structure_models.StructureLoggableMixin,
         return ('uuid', 'comment_user', 'issue')
 
     def clean_message(self, message):
-        template = getattr(settings, 'JIRA_COMMENT_TEMPLATE', None)
+        template = settings.WALDUR_JIRA['COMMENT_TEMPLATE']
         if not template:
             return self.message
 
@@ -199,7 +197,7 @@ class Comment(structure_models.StructureLoggableMixin,
         return self.message
 
     def prepare_message(self):
-        template = getattr(settings, 'JIRA_COMMENT_TEMPLATE', None)
+        template = settings.WALDUR_JIRA['COMMENT_TEMPLATE']
         if template and self.user:
             return template.format(user=self.user, body=self.message)
         return self.message

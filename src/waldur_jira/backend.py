@@ -1,5 +1,5 @@
-import logging
 import functools
+import logging
 
 from jira import JIRA, JIRAError
 
@@ -49,17 +49,34 @@ class JiraBaseBackend(ServiceBackend):
         } for proj in self.manager.projects()]
 
 
+def check_captcha(e):
+    if e.response is None:
+        return False
+    if not hasattr(e.response, 'headers'):
+        return False
+    return e.response.headers['X-Seraph-LoginReason'] == 'AUTHENTICATED_FAILED'
+
+
+def reraise_exceptions(func):
+    @functools.wraps(func)
+    def wrapped(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except JIRAError as e:
+            six.reraise(JiraBackendError, e)
+    return wrapped
+
+
 class JiraBackend(JiraBaseBackend):
-    """ NodeConductor interface to JIRA.
+    """ Waldur interface to JIRA.
         http://pythonhosted.org/jira/
         http://docs.atlassian.com/jira/REST/latest/
     """
 
     @staticmethod
-    def convert_field(value, choices, mapping_setting=None):
+    def convert_field(value, choices, mapping=None):
         """ Reverse mapping for choice fields """
-        if mapping_setting:
-            mapping = getattr(settings, mapping_setting, {})
+        if mapping:
             mapping = {v: k for k, v in mapping.items()}
             value = mapping.get(value, value)
 
@@ -80,18 +97,11 @@ class JiraBackend(JiraBaseBackend):
                     basic_auth=(self.settings.username, self.settings.password),
                     validate=False)
             except JIRAError as e:
+                if check_captcha(e):
+                    raise JiraBackendError('JIRA CAPTCHA is triggered. Please reset credentials.')
                 six.reraise(JiraBackendError, e)
 
             return self._manager
-
-    def reraise_exceptions(func):
-        @functools.wraps(func)
-        def wrapped(self, *args, **kwargs):
-            try:
-                return func(self, *args, **kwargs)
-            except JIRAError as e:
-                six.reraise(JiraBackendError, e)
-        return wrapped
 
     @reraise_exceptions
     def get_field_id_by_name(self, field_name):
@@ -138,7 +148,7 @@ class JiraBackend(JiraBaseBackend):
             args[self.get_field_id_by_name(self.impact_field)] = issue.get_impact_display()
 
         if issue.priority:
-            mapping = getattr(settings, 'JIRA_PRIORITY_MAPPING', {})
+            mapping = settings.WALDUR_JIRA['PRIORITY_MAPPING']
             priority = issue.get_priority_display()
             args['priority'] = {'name': mapping.get(priority, priority)}
 
@@ -202,7 +212,7 @@ class JiraBackend(JiraBaseBackend):
                 status=fields.status.name,
                 summary=fields.summary,
                 priority=self.convert_field(
-                    priority, project.issues.model.Priority.CHOICES, mapping_setting='JIRA_PRIORITY_MAPPING'),
+                    priority, project.issues.model.Priority.CHOICES, mapping=settings.WALDUR_JIRA['PRIORITY_MAPPING']),
                 description=fields.description or '',
                 resolution=fields.resolution or '',
                 updated_username=fields.creator.displayName,

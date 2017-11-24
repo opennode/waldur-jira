@@ -1,4 +1,5 @@
 from datetime import datetime
+from django.conf import settings
 from rest_framework import serializers
 
 from nodeconductor.core.fields import NaturalChoiceField
@@ -271,7 +272,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         backend = project.get_backend()
         priority = backend.convert_field(
-            fields['priority']['name'], models.Issue.Priority.CHOICES, mapping_setting='JIRA_PRIORITY_MAPPING')
+            fields['priority']['name'], models.Issue.Priority.CHOICES, mapping=settings.WALDUR_JIRA['PRIORITY_MAPPING'])
         if project.impact_field:
             impact_field = backend.get_field_id_by_name(project.impact_field)
             impact_value = self.initial_data['issue']['fields'].get(impact_field)
