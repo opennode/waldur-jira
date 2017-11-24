@@ -7,9 +7,7 @@ License: MIT
 Url: http://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Obsoletes: waldur-jira
-
-Requires: nodeconductor >= 0.150.2
+Requires: waldur-core >= 0.150.2
 Requires: python-jira >= 1.0.4
 
 BuildArch: noarch
