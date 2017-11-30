@@ -2,9 +2,9 @@ from datetime import datetime
 from django.conf import settings
 from rest_framework import serializers
 
-from nodeconductor.core.fields import NaturalChoiceField
-from nodeconductor.core.serializers import AugmentedSerializerMixin
-from nodeconductor.structure import serializers as structure_serializers
+from waldur_core.core.fields import NaturalChoiceField
+from waldur_core.core.serializers import AugmentedSerializerMixin
+from waldur_core.structure import serializers as structure_serializers
 
 from .backend import JiraBackendError
 from . import models

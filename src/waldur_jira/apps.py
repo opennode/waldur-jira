@@ -8,8 +8,8 @@ class JiraConfig(AppConfig):
     service_name = 'JIRA'
 
     def ready(self):
-        from nodeconductor.structure import SupportedServices
-        from nodeconductor.structure.signals import resource_imported
+        from waldur_core.structure import SupportedServices
+        from waldur_core.structure.signals import resource_imported
 
         from . import handlers
         from .backend import JiraBackend
