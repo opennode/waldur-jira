@@ -9,7 +9,7 @@ Installation
 
     git clone https://github.com/opennode/waldur-jira.git
 
-* Install Waldur JIRA into NodeConductor virtual environment
+* Install Waldur JIRA into Waldur virtual environment
 
   .. code-block:: bash
 
