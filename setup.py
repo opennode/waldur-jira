@@ -13,7 +13,7 @@ install_requires = [
 
 setup(
     name='waldur-jira',
-    version='0.5.0',
+    version='0.5.1',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

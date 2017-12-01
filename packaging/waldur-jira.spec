@@ -1,7 +1,7 @@
 Name: waldur-jira
 Summary: JIRA plugin for Waldur
 Group: Development/Libraries
-Version: 0.5.0
+Version: 0.5.1
 Release: 1.el7
 License: MIT
 Url: http://waldur.com
