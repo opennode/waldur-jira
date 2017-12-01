@@ -1,4 +1,4 @@
-from nodeconductor.core import tasks, executors
+from waldur_core.core import tasks, executors
 
 
 class ProjectCreateExecutor(executors.CreateExecutor):

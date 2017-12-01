@@ -1,7 +1,7 @@
 Configuration
 -------------
 
-NodeConductor can integrate with Atlassian JIRA to provide support to the end-users.
+Waldur can integrate with Atlassian JIRA to provide support to the end-users.
 
 Expected structure for the JIRA project is as follows:
 
@@ -27,7 +27,7 @@ Expected permissions:
 WebHook Setup
 -------------
 
-It's possible to track updates of JIRA issues and apply them to NodeConductor immediately.
+It's possible to track updates of JIRA issues and apply them to Waldur immediately.
 
 An instruction of JIRA configuration can be found at
 https://developer.atlassian.com/jiradev/jira-apis/webhooks

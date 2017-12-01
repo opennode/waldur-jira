@@ -6,14 +6,14 @@ test_requires = [
 ]
 
 install_requires = [
-    'nodeconductor>=0.150.2',
+    'waldur-core>=0.151.0',
     'jira>=1.0.4',
 ]
 
 
 setup(
     name='waldur-jira',
-    version='0.5.0',
+    version='0.5.1',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -28,7 +28,7 @@ setup(
         'test': test_requires,
     },
     entry_points={
-        'nodeconductor_extensions': (
+        'waldur_extensions': (
             'waldur_jira = waldur_jira.extension:JiraExtension',
         ),
     },

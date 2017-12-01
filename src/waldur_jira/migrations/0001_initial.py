@@ -8,11 +8,11 @@ import django.db.models.deletion
 import django.utils.timezone
 import django_fsm
 import model_utils.fields
-import nodeconductor.core.fields
-import nodeconductor.core.models
-import nodeconductor.core.validators
-import nodeconductor.logging.loggers
-import nodeconductor.structure.models
+import waldur_core.core.fields
+import waldur_core.core.models
+import waldur_core.core.validators
+import waldur_core.logging.loggers
+import waldur_core.structure.models
 import taggit.managers
 
 
@@ -33,7 +33,7 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('error_message', models.TextField(blank=True)),
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(max_length=255)),
@@ -49,7 +49,7 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('error_message', models.TextField(blank=True)),
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(max_length=255)),
@@ -58,7 +58,7 @@ class Migration(migrations.Migration):
             options={
                 'abstract': False,
             },
-            bases=(nodeconductor.structure.models.StructureLoggableMixin, models.Model),
+            bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(
             name='Issue',
@@ -66,7 +66,7 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('error_message', models.TextField(blank=True)),
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(max_length=255)),
@@ -83,20 +83,20 @@ class Migration(migrations.Migration):
             options={
                 'abstract': False,
             },
-            bases=(nodeconductor.structure.models.StructureLoggableMixin, models.Model),
+            bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(
             name='JiraService',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('available_for_all', models.BooleanField(default=False, help_text='Service will be automatically added to all customers projects if it is available for all')),
                 ('customer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='structure.Customer', verbose_name='organization')),
             ],
             options={
                 'abstract': False,
             },
-            bases=(nodeconductor.core.models.DescendantMixin, nodeconductor.logging.loggers.LoggableMixin, models.Model),
+            bases=(waldur_core.core.models.DescendantMixin, waldur_core.logging.loggers.LoggableMixin, models.Model),
         ),
         migrations.CreateModel(
             name='JiraServiceProjectLink',
@@ -106,7 +106,7 @@ class Migration(migrations.Migration):
             options={
                 'abstract': False,
             },
-            bases=(nodeconductor.core.models.DescendantMixin, nodeconductor.logging.loggers.LoggableMixin, models.Model),
+            bases=(waldur_core.core.models.DescendantMixin, waldur_core.logging.loggers.LoggableMixin, models.Model),
         ),
         migrations.CreateModel(
             name='Project',
@@ -115,8 +115,8 @@ class Migration(migrations.Migration):
                 ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
                 ('description', models.CharField(blank=True, max_length=500, verbose_name='description')),
-                ('name', models.CharField(max_length=150, validators=[nodeconductor.core.validators.validate_name], verbose_name='name')),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('name', models.CharField(max_length=150, validators=[waldur_core.core.validators.validate_name], verbose_name='name')),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('error_message', models.TextField(blank=True)),
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
@@ -130,7 +130,7 @@ class Migration(migrations.Migration):
             options={
                 'abstract': False,
             },
-            bases=(nodeconductor.core.models.DescendantMixin, nodeconductor.core.models.BackendModelMixin, nodeconductor.logging.loggers.LoggableMixin, models.Model),
+            bases=(waldur_core.core.models.DescendantMixin, waldur_core.core.models.BackendModelMixin, waldur_core.logging.loggers.LoggableMixin, models.Model),
         ),
         migrations.AddField(
             model_name='jiraserviceprojectlink',

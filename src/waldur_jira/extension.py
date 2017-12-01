@@ -1,9 +1,9 @@
 from __future__ import unicode_literals
 
-from nodeconductor.core import NodeConductorExtension
+from waldur_core.core import WaldurExtension
 
 
-class JiraExtension(NodeConductorExtension):
+class JiraExtension(WaldurExtension):
 
     class Settings:
         WALDUR_JIRA = {

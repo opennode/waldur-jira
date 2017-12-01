@@ -2,7 +2,7 @@ import factory
 
 from django.core.urlresolvers import reverse
 
-from nodeconductor.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import factories as structure_factories
 
 from .. import models
 from ..apps import JiraConfig
