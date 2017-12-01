@@ -7,7 +7,7 @@ from django.conf import settings
 from django.utils import six
 from django.utils.dateparse import parse_datetime
 
-from nodeconductor.structure import ServiceBackend, ServiceBackendError
+from waldur_core.structure import ServiceBackend, ServiceBackendError
 
 
 logger = logging.getLogger(__name__)

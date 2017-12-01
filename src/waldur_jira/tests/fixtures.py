@@ -1,7 +1,7 @@
 from django.utils.functional import cached_property
 
-from nodeconductor.structure.tests import factories as structure_factories
-from nodeconductor.structure.tests import fixtures as structure_fixtures
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 
 from .. import models
 from ..apps import JiraConfig

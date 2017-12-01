@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from nodeconductor.structure import admin as structure_admin
+from waldur_core.structure import admin as structure_admin
 
 from .models import JiraService, JiraServiceProjectLink, Project, Issue, Comment
 
