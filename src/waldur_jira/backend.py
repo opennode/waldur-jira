@@ -138,7 +138,7 @@ class JiraBackend(JiraBaseBackend):
         args = dict(
             project=issue.project.backend_id,
             summary=issue.summary,
-            description=issue.description,
+            description=issue.get_description(),
             issuetype={'name': self.default_issue_type},
         )
         if self.reporter_field:
@@ -163,7 +163,7 @@ class JiraBackend(JiraBaseBackend):
     @reraise_exceptions
     def update_issue(self, issue):
         backend_issue = self.manager.issue(issue.backend_id)
-        backend_issue.update(summary=issue.summary, description=issue.description)
+        backend_issue.update(summary=issue.summary, description=issue.get_description())
 
     @reraise_exceptions
     def delete_issue(self, issue):
