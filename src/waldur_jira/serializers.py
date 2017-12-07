@@ -3,8 +3,8 @@ from django.conf import settings
 from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
-from waldur_core.core import serializers as core_serializers
-from waldur_core.structure import serializers as structure_serializers, models as structure_models 
+from waldur_core.core.serializers import AugmentedSerializerMixin
+from waldur_core.structure import serializers as structure_serializers
 
 from .backend import JiraBackendError
 from . import models
@@ -86,7 +86,7 @@ class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer
         return super(ProjectImportSerializer, self).create(validated_data)
 
 
-class JiraPropertySerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+class JiraPropertySerializer(AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
 
     class Meta(object):
@@ -150,11 +150,6 @@ class IssueSerializer(JiraPropertySerializer):
     priority = NaturalChoiceField(models.Issue.Priority.CHOICES)
     access_url = serializers.ReadOnlyField(source='get_access_url')
     comments = CommentSerializer(many=True, read_only=True)
-    
-    resource = core_serializers.GenericRelatedField(
-        related_models=structure_models.ResourceMixin.get_all_models(), required=False)
-    resource_type = serializers.SerializerMethodField()
-    resource_name = serializers.ReadOnlyField(source='resource.name')
 
     class Meta(JiraPropertySerializer.Meta):
         model = models.Issue
@@ -163,7 +158,6 @@ class IssueSerializer(JiraPropertySerializer):
             'key', 'summary', 'description', 'resolution', 'status',
             'type', 'priority', 'impact', 'created', 'updated', 'updated_username',
             'access_url', 'comments',
-            'resource', 'resource_type', 'resource_name',
         )
         read_only_fields = 'type', 'status', 'resolution', 'updated_username', 'error_message'
         protected_fields = 'project', 'key'
