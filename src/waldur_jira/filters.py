@@ -1,6 +1,13 @@
 import django_filters
 
-from .models import Attachment, Comment, Issue, Project
+from waldur_core.structure import filters as structure_filters
+
+from . import models
+
+
+class ProjectFilter(structure_filters.BaseResourceFilter):
+    class Meta(structure_filters.BaseResourceFilter.Meta):
+        model = models.Project
 
 
 class IssueFilter(django_filters.FilterSet):
@@ -12,7 +19,7 @@ class IssueFilter(django_filters.FilterSet):
     status = django_filters.CharFilter()
 
     class Meta(object):
-        model = Issue
+        model = models.Issue
         fields = [
             'key',
             'summary',
@@ -36,7 +43,7 @@ class CommentFilter(django_filters.FilterSet):
     user_uuid = django_filters.UUIDFilter(name='user__uuid')
 
     class Meta(object):
-        model = Comment
+        model = models.Comment
         fields = [
             'issue_key',
             'issue_uuid',
@@ -48,17 +55,7 @@ class AttachmentFilter(django_filters.FilterSet):
     issue_key = django_filters.CharFilter(name='issue__backend_id')
 
     class Meta(object):
-        model = Attachment
+        model = models.Attachment
         fields = [
             'issue_key',
-        ]
-
-
-class ProjectFilter(django_filters.FilterSet):
-    available_for_all = django_filters.BooleanFilter()
-
-    class Meta(object):
-        model = Project
-        fields = [
-            'available_for_all',
         ]
