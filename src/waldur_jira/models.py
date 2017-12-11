@@ -29,9 +29,9 @@ class JiraServiceProjectLink(structure_models.ServiceProjectLink):
         return 'jira-spl'
 
 
-class Project(core_models.StateMixin, structure_models.ResourceMixin):
+class Project(structure_models.NewResource):
 
-    class Permissions(structure_models.ResourceMixin.Permissions):
+    class Permissions(structure_models.NewResource.Permissions):
         extra_query = dict(available_for_all=True)
 
     service_project_link = models.ForeignKey(
