@@ -32,15 +32,3 @@ class JiraFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def jira_project_url(self):
         return factories.ProjectFactory.get_url(self.jira_project)
-
-    @cached_property
-    def jira_global_project(self):
-        return factories.ProjectFactory(
-            service_project_link=self.service_project_link,
-            available_for_all=True,
-            state=models.Project.States.OK
-        )
-
-    @cached_property
-    def jira_global_project_url(self):
-        return factories.ProjectFactory.get_url(self.jira_global_project)
