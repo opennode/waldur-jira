@@ -76,6 +76,7 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
     )
 
     template_name = serializers.ReadOnlyField(source='template.name')
+    template_description = serializers.ReadOnlyField(source='template.description')
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Project
@@ -84,7 +85,7 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
             'key', 'template',
         )
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'key', 'template', 'template_name',
+            'key', 'template', 'template_name', 'template_description'
         )
 
     def create(self, validated_data):
