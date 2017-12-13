@@ -31,6 +31,12 @@ class JiraServiceProjectLink(structure_models.ServiceProjectLink):
         return 'jira-spl'
 
 
+class ProjectTemplate(core_models.UiDescribableMixin, structure_models.GeneralServiceProperty):
+    @classmethod
+    def get_url_name(cls):
+        return 'jira-project-templates'
+
+
 class Project(structure_models.NewResource):
 
     class Permissions(structure_models.NewResource.Permissions):
@@ -38,6 +44,7 @@ class Project(structure_models.NewResource):
 
     service_project_link = models.ForeignKey(
         JiraServiceProjectLink, related_name='projects', on_delete=models.PROTECT)
+    template = models.ForeignKey(ProjectTemplate)
 
     impact_field = models.CharField(max_length=64, blank=True)
     reporter_field = models.CharField(max_length=64, blank=True)

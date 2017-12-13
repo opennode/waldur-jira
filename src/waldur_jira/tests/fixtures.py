@@ -26,9 +26,21 @@ class JiraFixture(structure_fixtures.ProjectFixture):
         return factories.JiraServiceProjectLinkFactory(service=self.service, project=self.project)
 
     @cached_property
+    def service_project_link_url(self):
+        return factories.JiraServiceProjectLinkFactory.get_url(self.service_project_link)
+
+    @cached_property
     def jira_project(self):
         return factories.ProjectFactory(service_project_link=self.service_project_link)
 
     @cached_property
     def jira_project_url(self):
         return factories.ProjectFactory.get_url(self.jira_project)
+
+    @cached_property
+    def jira_project_template(self):
+        return factories.ProjectTemplateFactory()
+
+    @cached_property
+    def jira_project_template_url(self):
+        return factories.ProjectTemplateFactory.get_url(self.jira_project_template)

@@ -1,5 +1,9 @@
+import re
+
 from datetime import datetime
 from django.conf import settings
+from django.core import validators as django_validators
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
@@ -32,9 +36,28 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         }
 
 
+class ProjectTemplateSerializer(structure_serializers.BasePropertySerializer):
+    class Meta(object):
+        model = models.ProjectTemplate
+        fields = ('url', 'uuid', 'name', 'description', 'icon_url')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
 class ProjectSerializer(structure_serializers.BaseResourceSerializer):
 
-    key = serializers.CharField(write_only=True)
+    key = serializers.CharField(write_only=True, validators=[
+        django_validators.RegexValidator(
+            regex=re.compile('[A-Z][A-Z0-9]+'),
+            message=_('Project keys must start with an uppercase letter, '
+                      'followed by one or more uppercase alphanumeric characters.'),
+        ),
+        django_validators.MaxLengthValidator(
+            limit_value=10,
+            message=_('The project key must not exceed 10 characters in length.')
+        ),
+    ])
 
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
@@ -46,14 +69,23 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
         view_name='jira-spl-detail',
         queryset=models.JiraServiceProjectLink.objects.all())
 
+    template = serializers.HyperlinkedRelatedField(
+        view_name='jira-project-templates-detail',
+        queryset=models.ProjectTemplate.objects.all(),
+        lookup_field='uuid'
+    )
+
+    template_name = serializers.ReadOnlyField(source='template.name')
+    template_description = serializers.ReadOnlyField(source='template.description')
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Project
         view_name = 'jira-projects-detail'
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'key',
+            'key', 'template',
         )
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'key', 'impact_field', 'reporter_field', 'default_issue_type', 'available_for_all',
+            'key', 'template', 'template_name', 'template_description'
         )
 
     def create(self, validated_data):

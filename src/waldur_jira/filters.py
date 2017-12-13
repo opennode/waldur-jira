@@ -5,6 +5,11 @@ from waldur_core.structure import filters as structure_filters
 from . import models
 
 
+class ProjectTemplateFilter(structure_filters.BaseServicePropertyFilter):
+    class Meta(structure_filters.BaseServicePropertyFilter.Meta):
+        model = models.ProjectTemplate
+
+
 class ProjectFilter(structure_filters.BaseResourceFilter):
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Project
