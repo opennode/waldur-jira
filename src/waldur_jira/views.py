@@ -34,6 +34,13 @@ class JiraPermissionMixin(object):
             return queryset.filter(user=user)
 
 
+class ProjectTemplateViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.ProjectTemplate.objects.all()
+    filter_class = filters.ProjectTemplateFilter
+    serializer_class = serializers.ProjectTemplateSerializer
+    lookup_field = 'uuid'
+
+
 class ProjectViewSet(structure_views.ResourceViewSet):
     queryset = models.Project.objects.all()
     filter_class = filters.ProjectFilter

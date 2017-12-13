@@ -2,12 +2,16 @@ import functools
 import logging
 
 from jira import JIRA, JIRAError
+from jira.client import _get_template_list
+from jira.utils import json_loads
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import six
 from django.utils.dateparse import parse_datetime
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError
+from . import models
 
 
 logger = logging.getLogger(__name__)
@@ -15,38 +19,6 @@ logger = logging.getLogger(__name__)
 
 class JiraBackendError(ServiceBackendError):
     pass
-
-
-class JiraBaseBackend(ServiceBackend):
-
-    def __init__(self, settings, project=None, impact_field=None,
-                 reporter_field=None, default_issue_type='Task', verify=False):
-
-        self.settings = settings
-        self.project = project
-        self.impact_field = impact_field
-        self.reporter_field = reporter_field
-        self.default_issue_type = default_issue_type
-        self.verify = verify
-
-    def sync(self):
-        self.ping(raise_exception=True)
-
-    def ping(self, raise_exception=False):
-        try:
-            self.manager.myself()
-        except JIRAError as e:
-            if raise_exception:
-                six.reraise(JiraBackendError, e)
-            return False
-        else:
-            return True
-
-    def get_resources_for_import(self):
-        return [{
-            'name': proj.name,
-            'backend_id': proj.key,
-        } for proj in self.manager.projects()]
 
 
 def check_captcha(e):
@@ -67,11 +39,41 @@ def reraise_exceptions(func):
     return wrapped
 
 
-class JiraBackend(JiraBaseBackend):
+class JiraBackend(ServiceBackend):
     """ Waldur interface to JIRA.
         http://pythonhosted.org/jira/
         http://docs.atlassian.com/jira/REST/latest/
     """
+
+    def __init__(self, settings, project=None, impact_field=None,
+                 reporter_field=None, default_issue_type='Task', verify=False):
+
+        self.settings = settings
+        self.project = project
+        self.impact_field = impact_field
+        self.reporter_field = reporter_field
+        self.default_issue_type = default_issue_type
+        self.verify = verify
+
+    def sync(self):
+        self.ping(raise_exception=True)
+        self.pull_project_templates()
+
+    def ping(self, raise_exception=False):
+        try:
+            self.manager.myself()
+        except JIRAError as e:
+            if raise_exception:
+                six.reraise(JiraBackendError, e)
+            return False
+        else:
+            return True
+
+    def get_resources_for_import(self):
+        return [{
+            'name': proj.name,
+            'backend_id': proj.key,
+        } for proj in self.manager.projects()]
 
     @staticmethod
     def convert_field(value, choices, mapping=None):
@@ -117,12 +119,39 @@ class JiraBackend(JiraBaseBackend):
             raise JiraBackendError("Can't find custom field %s" % field_name)
 
     @reraise_exceptions
+    def get_project_templates(self):
+        url = self.manager._options['server'] + '/rest/project-templates/latest/templates'
+
+        response = self.manager._session.get(url)
+        json_data = json_loads(response)
+        return _get_template_list(json_data)
+
+    def pull_project_templates(self):
+        backend_templates = self.get_project_templates()
+        with transaction.atomic():
+            for template in backend_templates:
+                icon_url = self.manager._options['server'] + template['iconUrl']
+                models.ProjectTemplate.objects.update_or_create(
+                    settings=self.settings,
+                    backend_id=template['name'],
+                    defaults={
+                        'name': template['name'],
+                        'description': template['description'],
+                        'icon_url': icon_url,
+                    })
+
+    @reraise_exceptions
     def get_project(self, project_id):
         return self.manager.project(project_id)
 
     @reraise_exceptions
     def create_project(self, project):
-        self.manager.create_project(project.backend_id, name=project.name, assignee=self.settings.username)
+        self.manager.create_project(
+            key=project.backend_id,
+            name=project.name,
+            assignee=self.settings.username,
+            template_name=project.template.name,
+        )
 
     @reraise_exceptions
     def update_project(self, project):
