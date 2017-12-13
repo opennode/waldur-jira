@@ -1,9 +1,11 @@
 import re
 import urlparse
 
-from django.db import models
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
@@ -112,6 +114,10 @@ class Issue(structure_models.StructureLoggableMixin,
     updated = models.DateTimeField(auto_now_add=True)
     updated_username = models.CharField(max_length=255, blank=True)
 
+    resource_content_type = models.ForeignKey(ContentType, null=True, related_name='jira_issues')
+    resource_object_id = models.PositiveIntegerField(null=True)
+    resource = GenericForeignKey('resource_content_type', 'resource_object_id')
+
     tracker = FieldTracker()
 
     def get_backend(self):
@@ -139,6 +145,13 @@ class Issue(structure_models.StructureLoggableMixin,
 
     def get_log_fields(self):
         return ('uuid', 'issue_user', 'key', 'summary', 'status', 'issue_project')
+
+    def get_description(self):
+        template = settings.WALDUR_JIRA['ISSUE_TEMPLATE']['RESOURCE_INFO']
+        if template and self.resource:
+            return self.description + template.format(resource=self.resource)
+
+        return self.description
 
     def __str__(self):
         return '{}: {}'.format(self.backend_id or '???', self.summary)
