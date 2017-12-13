@@ -75,6 +75,8 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
         lookup_field='uuid'
     )
 
+    template_name = serializers.ReadOnlyField(source='template.name')
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Project
         view_name = 'jira-projects-detail'
@@ -82,7 +84,7 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
             'key', 'template',
         )
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'key', 'template',
+            'key', 'template', 'template_name',
         )
 
     def create(self, validated_data):

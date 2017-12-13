@@ -130,10 +130,10 @@ class JiraBackend(ServiceBackend):
         backend_templates = self.get_project_templates()
         with transaction.atomic():
             for template in backend_templates:
+                backend_id = template['projectTemplateModuleCompleteKey']
                 icon_url = self.manager._options['server'] + template['iconUrl']
                 models.ProjectTemplate.objects.update_or_create(
-                    settings=self.settings,
-                    backend_id=template['name'],
+                    backend_id=backend_id,
                     defaults={
                         'name': template['name'],
                         'description': template['description'],
