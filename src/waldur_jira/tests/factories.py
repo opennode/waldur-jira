@@ -56,7 +56,6 @@ class ProjectTemplateFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'template-%s' % n)
     backend_id = factory.Sequence(lambda n: 'template-%s' % n)
-    settings = factory.SubFactory(JiraServiceSettingsFactory)
 
     @classmethod
     def get_url(cls, project=None, action=None):

@@ -39,7 +39,7 @@ class JiraFixture(structure_fixtures.ProjectFixture):
 
     @cached_property
     def jira_project_template(self):
-        return factories.ProjectTemplateFactory(settings=self.service_settings)
+        return factories.ProjectTemplateFactory()
 
     @cached_property
     def jira_project_template_url(self):
