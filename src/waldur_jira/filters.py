@@ -1,5 +1,6 @@
 import django_filters
 
+from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 
 from . import models
@@ -18,7 +19,8 @@ class ProjectFilter(structure_filters.BaseResourceFilter):
 class IssueFilter(django_filters.FilterSet):
     summary = django_filters.CharFilter(lookup_expr='icontains')
     description = django_filters.CharFilter(lookup_expr='icontains')
-    project_key = django_filters.CharFilter(name='project__backend_id')
+    project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
+    project_uuid = django_filters.UUIDFilter(name='project__uuid')
     user_uuid = django_filters.UUIDFilter(name='user__uuid')
     key = django_filters.CharFilter(name='backend_id')
     status = django_filters.CharFilter()
@@ -29,7 +31,6 @@ class IssueFilter(django_filters.FilterSet):
             'key',
             'summary',
             'description',
-            'project_key',
             'user_uuid',
             'status',
         ]

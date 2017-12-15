@@ -121,8 +121,8 @@ class Issue(structure_models.StructureLoggableMixin,
     updated = models.DateTimeField(auto_now_add=True)
     updated_username = models.CharField(max_length=255, blank=True)
 
-    resource_content_type = models.ForeignKey(ContentType, null=True, related_name='jira_issues')
-    resource_object_id = models.PositiveIntegerField(null=True)
+    resource_content_type = models.ForeignKey(ContentType, blank=True, null=True, related_name='jira_issues')
+    resource_object_id = models.PositiveIntegerField(blank=True, null=True)
     resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
     tracker = FieldTracker()
