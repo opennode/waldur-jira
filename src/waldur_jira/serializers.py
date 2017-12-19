@@ -45,6 +45,15 @@ class ProjectTemplateSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
+class IssueTypeSerializer(structure_serializers.BasePropertySerializer):
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.IssueType
+        fields = ('url', 'name', 'description', 'icon_url')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
 class ProjectSerializer(structure_serializers.BaseResourceSerializer):
 
     key = serializers.CharField(write_only=True, validators=[
@@ -77,6 +86,7 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
 
     template_name = serializers.ReadOnlyField(source='template.name')
     template_description = serializers.ReadOnlyField(source='template.description')
+    issue_types = IssueTypeSerializer(many=True, read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Project
@@ -85,7 +95,8 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
             'key', 'template',
         )
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'key', 'template', 'template_name', 'template_description'
+            'key', 'template', 'template_name', 'template_description',
+            'issue_types',
         )
 
     def create(self, validated_data):
@@ -96,13 +107,12 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
 class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer):
     impact_field = serializers.CharField(write_only=True)
     reporter_field = serializers.CharField(write_only=True)
-    default_issue_type = serializers.CharField(write_only=True)
 
     class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
         model = models.Project
         view_name = 'jira-projects-detail'
         fields = structure_serializers.BaseResourceImportSerializer.Meta.fields + (
-            'impact_field', 'reporter_field', 'default_issue_type', 'available_for_all',
+            'impact_field', 'reporter_field', 'available_for_all',
         )
 
     def create(self, validated_data):
@@ -197,21 +207,34 @@ class IssueSerializer(JiraPropertySerializer):
         fields = JiraPropertySerializer.Meta.fields + (
             'project', 'project_uuid', 'project_name',
             'key', 'summary', 'description', 'resolution', 'status',
-            'type', 'priority', 'impact', 'created', 'updated', 'updated_username',
+            'priority', 'impact', 'created', 'updated', 'updated_username',
             'access_url', 'comments',
+            'type', 'type_name', 'type_description',
             'resource', 'resource_type', 'resource_name',
         )
-        read_only_fields = 'type', 'status', 'resolution', 'updated_username', 'error_message'
-        protected_fields = 'project', 'key'
+        read_only_fields = 'status', 'resolution', 'updated_username', 'error_message'
+        protected_fields = 'project', 'key', 'type'
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
             project={'lookup_field': 'uuid', 'view_name': 'jira-projects-detail'},
+            type={'lookup_field': 'uuid', 'view_name': 'jira-issue-types-detail'},
             **JiraPropertySerializer.Meta.extra_kwargs
         )
         related_paths = dict(
             project=('uuid', 'name'),
+            type=('name', 'description'),
             **JiraPropertySerializer.Meta.related_paths
         )
+
+    def create(self, validated_data):
+        project = validated_data['project']
+        issue_type = validated_data['type']
+        if issue_type not in project.issue_types.all():
+            valid_choices = ', '.join(project.issue_types.values_list('name', flat=True))
+            raise serializers.ValidationError({
+                'type': _('Invalid issue type. Please select one of following: %s') % valid_choices
+            })
+        return super(IssueSerializer, self).create(validated_data)
 
 
 #
@@ -323,11 +346,21 @@ class WebHookReceiverSerializer(serializers.Serializer):
             impact = 0
 
         try:
+            issue_type = models.IssueType.objects.get(
+                settings=project.settings,
+                backend_id=fields['issuetype']['id']
+            )
+        except models.IssueType.DoesNotExist:
+            issue_type = backend.import_issue_type(fields['issuetype'])
+            issue_type.save()
+            project.issue_types.add(issue_type)
+
+        try:
             issue = models.Issue.objects.get(backend_id=validated_data['issue']['key'])
         except models.Issue.DoesNotExist as e:
             if event_type == self.Event.CREATE:
                 project.issues.create(
-                    type=fields['issuetype']['name'],
+                    type=issue_type,
                     status=fields['status']['name'],
                     summary=fields['summary'],
                     impact=impact,
@@ -361,7 +394,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     issue.description = fields['description'] or ''
                     issue.resolution = fields['resolution'] or ''
                     issue.status = fields['status']['name']
-                    issue.type = fields['issuetype']['name']
+                    issue.type = issue_type
                     issue.updated_username = validated_data['user']['displayName']
                     issue.save()
 

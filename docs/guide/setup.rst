@@ -81,7 +81,6 @@ Make sure custom fields configured properly and "available_for_all" property is 
         "project": "http://example.com/api/projects/e63838e3e68f4fc4aa39617b7550cef3/",
         "impact_field": "Impact",
         "reporter_field": "Original Reporter",
-        "default_issue_type": "Support Request",
         "available_for_all": true
     }
 

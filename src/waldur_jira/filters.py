@@ -16,6 +16,11 @@ class ProjectFilter(structure_filters.BaseResourceFilter):
         model = models.Project
 
 
+class IssueTypeFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
+        model = models.IssueType
+
+
 class IssueFilter(django_filters.FilterSet):
     summary = django_filters.CharFilter(lookup_expr='icontains')
     description = django_filters.CharFilter(lookup_expr='icontains')
