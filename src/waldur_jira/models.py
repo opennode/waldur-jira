@@ -48,15 +48,14 @@ class Project(structure_models.NewResource):
 
     impact_field = models.CharField(max_length=64, blank=True)
     reporter_field = models.CharField(max_length=64, blank=True)
-    default_issue_type = models.CharField(max_length=64, blank=True)
     available_for_all = models.BooleanField(default=False, help_text="Allow access to any user")
 
     def get_backend(self):
         return super(Project, self).get_backend(
             project=self.backend_id,
             impact_field=self.impact_field,
-            reporter_field=self.reporter_field,
-            default_issue_type=self.default_issue_type)
+            reporter_field=self.reporter_field
+        )
 
     def get_access_url(self):
         base_url = self.service_project_link.service.settings.backend_url
@@ -78,6 +77,18 @@ class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStamp
 
     class Meta(object):
         abstract = True
+
+
+@python_2_unicode_compatible
+class IssueType(core_models.UiDescribableMixin, structure_models.ServiceProperty):
+    projects = models.ManyToManyField(Project, related_name='issue_types')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'jira-issue-types'
+
+    def __str__(self):
+        return self.name
 
 
 @python_2_unicode_compatible
@@ -110,7 +121,7 @@ class Issue(structure_models.StructureLoggableMixin,
             (LARGE, 'Large - Whole organization or all services are affected'),
         )
 
-    type = models.CharField(max_length=255)
+    type = models.ForeignKey(IssueType)
     project = models.ForeignKey(Project, related_name='issues')
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)

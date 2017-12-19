@@ -3,7 +3,6 @@ from django.utils.functional import cached_property
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
-from .. import models
 from ..apps import JiraConfig
 from . import factories
 
@@ -44,3 +43,11 @@ class JiraFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def jira_project_template_url(self):
         return factories.ProjectTemplateFactory.get_url(self.jira_project_template)
+
+    @cached_property
+    def issue_type(self):
+        return factories.IssueTypeFactory(settings=self.service_settings)
+
+    @cached_property
+    def issue_type_url(self):
+        return factories.IssueTypeFactory.get_url(self.issue_type)

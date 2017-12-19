@@ -53,6 +53,13 @@ class ProjectViewSet(structure_views.ResourceViewSet):
     destroy_permissions = [structure_permissions.is_staff]
 
 
+class IssueTypeViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.IssueType.objects.all()
+    filter_class = filters.IssueTypeFilter
+    serializer_class = serializers.IssueTypeSerializer
+    lookup_field = 'uuid'
+
+
 class IssueViewSet(JiraPermissionMixin,
                    structure_views.ResourceViewSet):
     queryset = models.Issue.objects.all()

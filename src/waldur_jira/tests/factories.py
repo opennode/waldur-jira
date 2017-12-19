@@ -60,7 +60,7 @@ class ProjectTemplateFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, project=None, action=None):
         if project is None:
-            project = ProjectFactory()
+            project = ProjectTemplateFactory()
         url = 'http://testserver' + reverse('jira-project-templates-detail', kwargs={'uuid': project.uuid})
         return url if action is None else url + action + '/'
 
@@ -90,10 +90,31 @@ class ProjectFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('jira-projects-list')
 
 
+class IssueTypeFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.IssueType
+
+    settings = factory.SubFactory(JiraServiceSettingsFactory)
+    name = factory.Sequence(lambda n: 'issue-type-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'issue-type-%s' % n)
+
+    @classmethod
+    def get_url(cls, issue=None, action=None):
+        if issue is None:
+            issue = IssueTypeFactory()
+        url = 'http://testserver' + reverse('jira-issue-types-detail', kwargs={'uuid': issue.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('jira-issue-types-list')
+
+
 class IssueFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Issue
 
+    type = factory.SubFactory(IssueTypeFactory)
     backend_id = factory.Sequence(lambda n: 'TST-%s' % n)
     project = factory.SubFactory(ProjectFactory)
 

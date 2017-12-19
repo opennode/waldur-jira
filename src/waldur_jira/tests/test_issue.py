@@ -69,6 +69,7 @@ class IssueCreateTest(BaseTest):
     def setUp(self):
         super(IssueCreateTest, self).setUp()
         self.resource = structure_factories.TestNewInstanceFactory()
+        self.fixture.jira_project.issue_types.add(self.fixture.issue_type)
 
         self.jira_patcher = mock.patch('waldur_jira.backend.JIRA')
         self.jira_mock = self.jira_patcher.start()
@@ -87,7 +88,7 @@ class IssueCreateTest(BaseTest):
         self.client.force_authenticate(self.fixture.staff)
 
         response = self.client.post(factories.IssueFactory.get_list_url(), self._get_issue_payload())
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         self.assertEqual(self.create_issue.call_count, 1)
 
@@ -95,7 +96,7 @@ class IssueCreateTest(BaseTest):
         self.client.force_authenticate(self.fixture.staff)
 
         response = self.client.post(factories.IssueFactory.get_list_url(), self._get_issue_payload())
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         description_template = settings.WALDUR_JIRA['ISSUE_TEMPLATE']['RESOURCE_INFO']
         expected_description = description_template.format(resource=self.resource)
@@ -104,14 +105,31 @@ class IssueCreateTest(BaseTest):
         self.assertTrue(expected_description in actual_description)
         self.assertNotEqual(expected_description, actual_description)
 
+    def test_issue_name_is_passed_to_backend(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(factories.IssueFactory.get_list_url(), self._get_issue_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        issue_type_name = self.create_issue.call_args[1]['issuetype']['name']
+        self.assertEqual(issue_type_name, self.fixture.issue_type.name)
+
+    def test_issue_type_should_belong_to_project(self):
+        self.fixture.jira_project.issue_types.remove(self.fixture.issue_type)
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(factories.IssueFactory.get_list_url(), self._get_issue_payload())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def _get_issue_payload(self):
         return {
-            'project': factories.ProjectFactory.get_url(),
+            'project': self.fixture.jira_project_url,
             'summary': 'Summary',
             'description': 'description test issue',
             'priority': 'Minor',
             'impact': 'Small - Partial loss of service, one person affected',
-            'resource': structure_factories.TestNewInstanceFactory.get_url(self.resource)
+            'resource': structure_factories.TestNewInstanceFactory.get_url(self.resource),
+            'type': self.fixture.issue_type_url,
         }
 
 

@@ -11,6 +11,7 @@ from django.utils import six
 from django.utils.dateparse import parse_datetime
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError
+from waldur_core.structure.utils import update_pulled_fields
 from . import models
 
 
@@ -46,13 +47,12 @@ class JiraBackend(ServiceBackend):
     """
 
     def __init__(self, settings, project=None, impact_field=None,
-                 reporter_field=None, default_issue_type='Task', verify=False):
+                 reporter_field=None, verify=False):
 
         self.settings = settings
         self.project = project
         self.impact_field = impact_field
         self.reporter_field = reporter_field
-        self.default_issue_type = default_issue_type
         self.verify = verify
 
     def sync(self):
@@ -152,6 +152,49 @@ class JiraBackend(ServiceBackend):
             assignee=self.settings.username,
             template_name=project.template.name,
         )
+        self.pull_issue_types(project)
+
+    def pull_issue_types(self, project):
+        backend_project = self.get_project(project.backend_id)
+        backend_issue_types = {
+            issue_type.id: issue_type
+            for issue_type in backend_project.issueTypes
+        }
+        project_issue_types = {
+            issue_type.backend_id: issue_type
+            for issue_type in project.issue_types.all()
+        }
+        global_issue_types = {
+            issue_type.backend_id: issue_type
+            for issue_type in models.IssueType.objects.filter(settings=self.settings)
+        }
+
+        new_issue_types = set(backend_issue_types.keys()) - set(project_issue_types.keys())
+        for issue_type_id in new_issue_types:
+            if issue_type_id in global_issue_types:
+                issue_type = global_issue_types[issue_type_id]
+            else:
+                issue_type = self.import_issue_type(backend_issue_types[issue_type_id])
+                issue_type.save()
+            project.issue_types.add(issue_type)
+
+        stale_issue_types = set(project_issue_types.keys()) - set(backend_issue_types.keys())
+        project.issue_types.filter(backend_id__in=stale_issue_types).delete()
+
+        common_issue_types = set(project_issue_types.keys()) & set(backend_issue_types.keys())
+        for issue_type_id in common_issue_types:
+            issue_type = project_issue_types[issue_type_id]
+            imported_issue_type = self.import_issue_type(backend_issue_types[issue_type_id])
+            update_pulled_fields(issue_type, imported_issue_type, ('name', 'description', 'icon_url'))
+
+    def import_issue_type(self, backend_issue_type):
+        return models.IssueType(
+            settings=self.settings,
+            backend_id=backend_issue_type.id,
+            name=backend_issue_type.name,
+            description=backend_issue_type.description,
+            icon_url=backend_issue_type.iconUrl,
+        )
 
     @reraise_exceptions
     def update_project(self, project):
@@ -168,7 +211,7 @@ class JiraBackend(ServiceBackend):
             project=issue.project.backend_id,
             summary=issue.summary,
             description=issue.get_description(),
-            issuetype={'name': self.default_issue_type},
+            issuetype={'name': issue.type.name},
         )
         if self.reporter_field:
             args[self.get_field_id_by_name(self.reporter_field)] = issue.user.username
@@ -186,7 +229,6 @@ class JiraBackend(ServiceBackend):
         issue.backend_id = backend_issue.key
         issue.resolution = backend_issue.fields.resolution or ''
         issue.status = backend_issue.fields.status.name or ''
-        issue.type = self.default_issue_type
         issue.save(update_fields=['backend_id', 'resolution', 'status', 'type', 'updated_username'])
 
     @reraise_exceptions
@@ -235,9 +277,20 @@ class JiraBackend(ServiceBackend):
             fields = backend_issue.fields
             impact = getattr(fields, impact_field, None)
             priority = fields.priority.name
+
+            try:
+                issue_type = models.IssueType.objects.get(
+                    settings=project.settings,
+                    backend_id=fields.issuetype.id
+                )
+            except models.IssueType.DoesNotExist:
+                issue_type = self.import_issue_type(backend_issue.raw['issuetype'])
+                issue_type.save()
+                project.issue_types.add(issue_type)
+
             issue = project.issues.create(
                 impact=self.convert_field(impact, project.issues.model.Impact.CHOICES),
-                type=fields.issuetype.name,
+                type=issue_type,
                 status=fields.status.name,
                 summary=fields.summary,
                 priority=self.convert_field(

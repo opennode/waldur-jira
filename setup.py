@@ -6,7 +6,7 @@ test_requires = [
 ]
 
 install_requires = [
-    'waldur-core>=0.151.0',
+    'waldur-core>=0.151.1',
     'jira>=1.0.4',
 ]
 

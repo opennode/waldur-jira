@@ -7,7 +7,7 @@ License: MIT
 Url: http://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: waldur-core >= 0.151.0
+Requires: waldur-core >= 0.151.1
 Requires: python-jira >= 1.0.4
 
 BuildArch: noarch
