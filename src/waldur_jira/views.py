@@ -34,6 +34,13 @@ class JiraPermissionMixin(object):
             return queryset.filter(user=user)
 
 
+class ProjectTemplateViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.ProjectTemplate.objects.all()
+    filter_class = filters.ProjectTemplateFilter
+    serializer_class = serializers.ProjectTemplateSerializer
+    lookup_field = 'uuid'
+
+
 class ProjectViewSet(structure_views.ResourceViewSet):
     queryset = models.Project.objects.all()
     filter_class = filters.ProjectFilter
@@ -44,6 +51,13 @@ class ProjectViewSet(structure_views.ResourceViewSet):
     async_executor = False
 
     destroy_permissions = [structure_permissions.is_staff]
+
+
+class IssueTypeViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.IssueType.objects.all()
+    filter_class = filters.IssueTypeFilter
+    serializer_class = serializers.IssueTypeSerializer
+    lookup_field = 'uuid'
 
 
 class IssueViewSet(JiraPermissionMixin,
@@ -95,3 +109,9 @@ class WebHookReceiverViewSet(generics.CreateAPIView):
             # Throw validation errors to the logs
             logger.error("Can't parse JIRA WebHook request: %s" % e)
             raise
+
+
+def get_jira_projects_count(project):
+    return project.quotas.get(name='nc_jira_project_count').usage
+
+structure_views.ProjectCountersView.register_counter('jira-projects', get_jira_projects_count)

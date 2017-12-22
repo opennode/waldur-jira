@@ -13,7 +13,10 @@ class JiraExtension(WaldurExtension):
                 'Minor': '3 - Minor',
                 'Major': '2 - Major',
                 'Critical': '1 - Critical',
-            }
+            },
+            'ISSUE_TEMPLATE': {
+                'RESOURCE_INFO': '\nAffected resource: {resource}\n'
+            },
         }
 
     @staticmethod
