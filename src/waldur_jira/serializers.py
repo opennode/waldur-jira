@@ -105,14 +105,13 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
 
 
 class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer):
-    impact_field = serializers.CharField(write_only=True)
     reporter_field = serializers.CharField(write_only=True)
 
     class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
         model = models.Project
         view_name = 'jira-projects-detail'
         fields = structure_serializers.BaseResourceImportSerializer.Meta.fields + (
-            'impact_field', 'reporter_field', 'available_for_all',
+            'reporter_field', 'available_for_all',
         )
 
     def create(self, validated_data):
@@ -188,7 +187,6 @@ class AttachmentSerializer(JiraPropertySerializer):
 
 
 class IssueSerializer(JiraPropertySerializer):
-    impact = NaturalChoiceField(models.Issue.Impact.CHOICES)
     priority = NaturalChoiceField(models.Issue.Priority.CHOICES)
     access_url = serializers.ReadOnlyField(source='get_access_url')
     comments = CommentSerializer(many=True, read_only=True)
@@ -207,7 +205,7 @@ class IssueSerializer(JiraPropertySerializer):
         fields = JiraPropertySerializer.Meta.fields + (
             'project', 'project_uuid', 'project_name',
             'key', 'summary', 'description', 'resolution', 'status',
-            'priority', 'impact', 'created', 'updated', 'updated_username',
+            'priority', 'created', 'updated', 'updated_username',
             'access_url', 'comments',
             'type', 'type_name', 'type_description',
             'resource', 'resource_type', 'resource_name',
@@ -338,13 +336,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
         backend = project.get_backend()
         priority = backend.convert_field(
             fields['priority']['name'], models.Issue.Priority.CHOICES, mapping=settings.WALDUR_JIRA['PRIORITY_MAPPING'])
-        if project.impact_field:
-            impact_field = backend.get_field_id_by_name(project.impact_field)
-            impact_value = self.initial_data['issue']['fields'].get(impact_field)
-            impact = backend.convert_field(impact_value, models.Issue.Impact.CHOICES)
-        else:
-            impact = 0
-
         try:
             issue_type = models.IssueType.objects.get(
                 settings=project.settings,
@@ -363,7 +354,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     type=issue_type,
                     status=fields['status']['name'],
                     summary=fields['summary'],
-                    impact=impact,
                     priority=priority,
                     description=fields['description'] or '',
                     resolution=fields['resolution'] or '',
@@ -388,7 +378,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
                 # issue update
                 else:
-                    issue.impact = impact
                     issue.priority = priority
                     issue.summary = fields['summary']
                     issue.description = fields['description'] or ''

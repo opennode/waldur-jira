@@ -46,12 +46,11 @@ class JiraBackend(ServiceBackend):
         http://docs.atlassian.com/jira/REST/latest/
     """
 
-    def __init__(self, settings, project=None, impact_field=None,
+    def __init__(self, settings, project=None,
                  reporter_field=None, verify=False):
 
         self.settings = settings
         self.project = project
-        self.impact_field = impact_field
         self.reporter_field = reporter_field
         self.verify = verify
 
@@ -216,9 +215,6 @@ class JiraBackend(ServiceBackend):
         if self.reporter_field:
             args[self.get_field_id_by_name(self.reporter_field)] = issue.user.username
 
-        if self.impact_field and issue.impact:
-            args[self.get_field_id_by_name(self.impact_field)] = issue.get_impact_display()
-
         if issue.priority:
             mapping = settings.WALDUR_JIRA['PRIORITY_MAPPING']
             priority = issue.get_priority_display()
@@ -271,11 +267,9 @@ class JiraBackend(ServiceBackend):
 
     @reraise_exceptions
     def import_project_issues(self, project):
-        impact_field = self.get_field_id_by_name(self.impact_field) if self.impact_field else None
         for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
             backend_issue._parse_raw(backend_issue.raw)  # XXX: deal with weird issue in JIRA 1.0.4
             fields = backend_issue.fields
-            impact = getattr(fields, impact_field, None)
             priority = fields.priority.name
 
             try:
@@ -289,7 +283,6 @@ class JiraBackend(ServiceBackend):
                 project.issue_types.add(issue_type)
 
             issue = project.issues.create(
-                impact=self.convert_field(impact, project.issues.model.Impact.CHOICES),
                 type=issue_type,
                 status=fields.status.name,
                 summary=fields.summary,
