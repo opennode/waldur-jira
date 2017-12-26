@@ -127,7 +127,6 @@ class IssueCreateTest(BaseTest):
             'summary': 'Summary',
             'description': 'description test issue',
             'priority': 'Minor',
-            'impact': 'Small - Partial loss of service, one person affected',
             'resource': structure_factories.TestNewInstanceFactory.get_url(self.resource),
             'type': self.fixture.issue_type_url,
         }

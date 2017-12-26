@@ -46,14 +46,12 @@ class Project(structure_models.NewResource):
         JiraServiceProjectLink, related_name='projects', on_delete=models.PROTECT)
     template = models.ForeignKey(ProjectTemplate)
 
-    impact_field = models.CharField(max_length=64, blank=True)
     reporter_field = models.CharField(max_length=64, blank=True)
     available_for_all = models.BooleanField(default=False, help_text="Allow access to any user")
 
     def get_backend(self):
         return super(Project, self).get_backend(
             project=self.backend_id,
-            impact_field=self.impact_field,
             reporter_field=self.reporter_field
         )
 
@@ -108,26 +106,12 @@ class Issue(structure_models.StructureLoggableMixin,
             (CRITICAL, 'Critical'),
         )
 
-    class Impact:
-        UNKNOWN = 0
-        SMALL = 1
-        MEDIUM = 2
-        LARGE = 3
-
-        CHOICES = (
-            (UNKNOWN, 'n/a'),
-            (SMALL, 'Small - Partial loss of service, one person affected'),
-            (MEDIUM, 'Medium - One department or service is affected'),
-            (LARGE, 'Large - Whole organization or all services are affected'),
-        )
-
     type = models.ForeignKey(IssueType)
     project = models.ForeignKey(Project, related_name='issues')
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     resolution = models.CharField(blank=True, max_length=255)
     priority = models.SmallIntegerField(choices=Priority.CHOICES, default=0)
-    impact = models.SmallIntegerField(choices=Impact.CHOICES, default=0)
     status = models.CharField(max_length=255)
     updated = models.DateTimeField(auto_now_add=True)
     updated_username = models.CharField(max_length=255, blank=True)
