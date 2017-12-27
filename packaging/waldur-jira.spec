@@ -7,7 +7,7 @@ License: MIT
 Url: http://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: waldur-core >= 0.151.1
+Requires: waldur-core >= 0.151.3
 Requires: python-jira >= 1.0.4
 
 BuildArch: noarch
@@ -33,3 +33,7 @@ rm -rf %{buildroot}
 
 %files -f INSTALLED_FILES
 %defattr(-,root,root)
+
+%changelog
+* Fri Dec 22 2017 Victor Mireyev <victor@opennodecloud.com> - 0.5.2-1.el7
+- Initial release.
