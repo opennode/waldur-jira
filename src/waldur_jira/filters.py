@@ -49,24 +49,19 @@ class IssueFilter(django_filters.FilterSet):
 
 
 class CommentFilter(django_filters.FilterSet):
-    issue_key = django_filters.CharFilter(name='issue__backend_id')
+    issue = core_filters.URLFilter(view_name='jira-issues-detail', name='issue__uuid')
     issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
     user_uuid = django_filters.UUIDFilter(name='user__uuid')
 
     class Meta(object):
         model = models.Comment
-        fields = [
-            'issue_key',
-            'issue_uuid',
-            'user_uuid'
-        ]
+        fields = []
 
 
 class AttachmentFilter(django_filters.FilterSet):
-    issue_key = django_filters.CharFilter(name='issue__backend_id')
+    issue = core_filters.URLFilter(view_name='jira-issues-detail', name='issue__uuid')
+    issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
 
     class Meta(object):
         model = models.Attachment
-        fields = [
-            'issue_key',
-        ]
+        fields = []
