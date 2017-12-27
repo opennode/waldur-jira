@@ -184,7 +184,9 @@ class JiraBackend(ServiceBackend):
         for issue_type_id in common_issue_types:
             issue_type = project_issue_types[issue_type_id]
             imported_issue_type = self.import_issue_type(backend_issue_types[issue_type_id])
-            update_pulled_fields(issue_type, imported_issue_type, ('name', 'description', 'icon_url'))
+            update_pulled_fields(issue_type, imported_issue_type, (
+                'name', 'description', 'icon_url', 'subtask'
+            ))
 
     def import_issue_type(self, backend_issue_type):
         return models.IssueType(
@@ -193,6 +195,7 @@ class JiraBackend(ServiceBackend):
             name=backend_issue_type.name,
             description=backend_issue_type.description,
             icon_url=backend_issue_type.iconUrl,
+            subtask=backend_issue_type.subtask,
         )
 
     @reraise_exceptions
@@ -219,6 +222,9 @@ class JiraBackend(ServiceBackend):
             mapping = settings.WALDUR_JIRA['PRIORITY_MAPPING']
             priority = issue.get_priority_display()
             args['priority'] = {'name': mapping.get(priority, priority)}
+
+        if issue.parent:
+            args['parent'] = {'key': issue.parent.backend_id}
 
         backend_issue = self.manager.create_issue(**args)
         issue.updated_username = issue.user.username

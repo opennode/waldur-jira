@@ -48,7 +48,7 @@ class ProjectTemplateSerializer(structure_serializers.BasePropertySerializer):
 class IssueTypeSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.IssueType
-        fields = ('url', 'name', 'description', 'icon_url')
+        fields = ('url', 'name', 'description', 'icon_url', 'subtask')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
@@ -127,7 +127,9 @@ class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer
         return super(ProjectImportSerializer, self).create(validated_data)
 
 
-class JiraPropertySerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+class JiraPropertySerializer(core_serializers.RestrictedSerializerMixin,
+                             core_serializers.AugmentedSerializerMixin,
+                             serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
 
     class Meta(object):
@@ -196,6 +198,13 @@ class IssueSerializer(JiraPropertySerializer):
     resource_type = serializers.SerializerMethodField()
     resource_name = serializers.ReadOnlyField(source='resource.name')
 
+    parent = serializers.HyperlinkedRelatedField(
+        view_name='jira-issues-detail',
+        queryset=models.Issue.objects.all(),
+        lookup_field='uuid',
+        required=False,
+    )
+
     def get_resource_type(self, obj):
         if obj.resource:
             return SupportedServices.get_name_for_model(obj.resource_content_type.model_class())
@@ -209,6 +218,7 @@ class IssueSerializer(JiraPropertySerializer):
             'access_url', 'comments',
             'type', 'type_name', 'type_description',
             'resource', 'resource_type', 'resource_name',
+            'parent', 'parent_key', 'parent_summary',
         )
         read_only_fields = 'status', 'resolution', 'updated_username', 'error_message'
         protected_fields = 'project', 'key', 'type'
@@ -216,11 +226,13 @@ class IssueSerializer(JiraPropertySerializer):
             url={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
             project={'lookup_field': 'uuid', 'view_name': 'jira-projects-detail'},
             type={'lookup_field': 'uuid', 'view_name': 'jira-issue-types-detail'},
+            parent={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
             **JiraPropertySerializer.Meta.extra_kwargs
         )
         related_paths = dict(
             project=('uuid', 'name'),
             type=('name', 'description'),
+            parent=('key', 'summary'),
             **JiraPropertySerializer.Meta.related_paths
         )
 
@@ -232,6 +244,19 @@ class IssueSerializer(JiraPropertySerializer):
             raise serializers.ValidationError({
                 'type': _('Invalid issue type. Please select one of following: %s') % valid_choices
             })
+
+        parent_issue = validated_data.get('parent')
+        if parent_issue:
+            if not issue_type.subtask:
+                raise serializers.ValidationError({
+                    'parent': _('Issue type is not subtask, parent issue is not allowed.')
+                })
+
+            if parent_issue.project != project:
+                raise serializers.ValidationError({
+                    'parent': _('Parent issue should belong to the same JIRA project.')
+                })
+
         return super(IssueSerializer, self).create(validated_data)
 
 

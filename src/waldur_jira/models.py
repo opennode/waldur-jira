@@ -80,6 +80,7 @@ class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStamp
 @python_2_unicode_compatible
 class IssueType(core_models.UiDescribableMixin, structure_models.ServiceProperty):
     projects = models.ManyToManyField(Project, related_name='issue_types')
+    subtask = models.BooleanField(default=False)
 
     @classmethod
     def get_url_name(cls):
@@ -107,6 +108,7 @@ class Issue(structure_models.StructureLoggableMixin,
         )
 
     type = models.ForeignKey(IssueType)
+    parent = models.ForeignKey('Issue', blank=True, null=True)
     project = models.ForeignKey(Project, related_name='issues')
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
