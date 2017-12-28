@@ -88,7 +88,7 @@ class IssueCreateBaseTest(BaseTest):
             'project': self.fixture.jira_project_url,
             'summary': 'Summary',
             'description': 'description test issue',
-            'priority': 'Minor',
+            'priority': self.fixture.priority_url,
             'type': self.fixture.issue_type_url,
         }
         payload.update(kwargs)
@@ -170,7 +170,7 @@ class IssueCreateSubtaskTest(IssueCreateBaseTest):
             summary='Summary',
             description='description test issue',
             issuetype={'name': self.subtask_type.name},
-            priority={'name': '3 - Minor'},
+            priority={'name': self.fixture.priority.name},
             parent={'key': self.issue.backend_id},
         )
 

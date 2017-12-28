@@ -61,6 +61,13 @@ class IssueTypeViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = 'uuid'
 
 
+class PriorityViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Priority.objects.all()
+    serializer_class = serializers.PrioritySerializer
+    filter_class = filters.PriorityFilter
+    lookup_field = 'uuid'
+
+
 class IssueViewSet(JiraPermissionMixin,
                    structure_views.ResourceViewSet):
     queryset = models.Issue.objects.all()

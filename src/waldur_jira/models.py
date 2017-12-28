@@ -63,6 +63,10 @@ class Project(structure_models.NewResource):
     def get_url_name(cls):
         return 'jira-projects'
 
+    @property
+    def priorities(self):
+        return Priority.objects.filter(settings=self.service_project_link.service.settings)
+
 
 class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
@@ -91,21 +95,19 @@ class IssueType(core_models.UiDescribableMixin, structure_models.ServiceProperty
 
 
 @python_2_unicode_compatible
+class Priority(core_models.UiDescribableMixin, structure_models.ServiceProperty):
+
+    @classmethod
+    def get_url_name(cls):
+        return 'jira-priorities'
+
+    def __str__(self):
+        return self.name
+
+
+@python_2_unicode_compatible
 class Issue(structure_models.StructureLoggableMixin,
             JiraPropertyIssue):
-
-    class Priority:
-        UNKNOWN = 0
-        MINOR = 1
-        MAJOR = 2
-        CRITICAL = 3
-
-        CHOICES = (
-            (UNKNOWN, 'n/a'),
-            (MINOR, 'Minor'),
-            (MAJOR, 'Major'),
-            (CRITICAL, 'Critical'),
-        )
 
     type = models.ForeignKey(IssueType)
     parent = models.ForeignKey('Issue', blank=True, null=True)
@@ -113,7 +115,7 @@ class Issue(structure_models.StructureLoggableMixin,
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     resolution = models.CharField(blank=True, max_length=255)
-    priority = models.SmallIntegerField(choices=Priority.CHOICES, default=0)
+    priority = models.ForeignKey(Priority)
     status = models.CharField(max_length=255)
     updated = models.DateTimeField(auto_now_add=True)
     updated_username = models.CharField(max_length=255, blank=True)

@@ -111,11 +111,32 @@ class IssueTypeFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('jira-issue-types-list')
 
 
+class PriorityFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Priority
+
+    settings = factory.SubFactory(JiraServiceSettingsFactory)
+    name = factory.Sequence(lambda n: 'priority-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'priority-%s' % n)
+
+    @classmethod
+    def get_url(cls, issue=None, action=None):
+        if issue is None:
+            issue = PriorityFactory()
+        url = 'http://testserver' + reverse('jira-priorities-detail', kwargs={'uuid': issue.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('jira-priorities-list')
+
+
 class IssueFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Issue
 
     type = factory.SubFactory(IssueTypeFactory)
+    priority = factory.SubFactory(PriorityFactory)
     backend_id = factory.Sequence(lambda n: 'TST-%s' % n)
     project = factory.SubFactory(ProjectFactory)
 
