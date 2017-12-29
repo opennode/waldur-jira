@@ -30,6 +30,8 @@ class Migration(migrations.Migration):
             ],
             options={
                 'abstract': False,
+                'verbose_name': 'Priority',
+                'verbose_name_plural': 'Priorities',
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),

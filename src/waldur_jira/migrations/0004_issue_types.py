@@ -29,6 +29,8 @@ class Migration(migrations.Migration):
             ],
             options={
                 'abstract': False,
+                'verbose_name': 'Issue type',
+                'verbose_name_plural': 'Issue types',
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
