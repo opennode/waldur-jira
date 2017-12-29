@@ -57,6 +57,7 @@ class JiraBackend(ServiceBackend):
     def sync(self):
         self.ping(raise_exception=True)
         self.pull_project_templates()
+        self.pull_priorities()
 
     def ping(self, raise_exception=False):
         try:
@@ -140,6 +141,42 @@ class JiraBackend(ServiceBackend):
                     })
 
     @reraise_exceptions
+    def pull_priorities(self):
+        backend_priorities = self.manager.priorities()
+        with transaction.atomic():
+            backend_priorities_map = {
+                priority.id: priority for priority in backend_priorities
+            }
+
+            waldur_priorities = {
+                priority.backend_id: priority
+                for priority in models.Priority.objects.filter(settings=self.settings)
+            }
+
+            stale_priorities = set(waldur_priorities.keys()) - set(backend_priorities_map.keys())
+            models.Priority.objects.filter(backend_id__in=stale_priorities)
+
+            for priority in backend_priorities:
+                models.Priority.objects.update_or_create(
+                    backend_id=priority.id,
+                    settings=self.settings,
+                    defaults={
+                        'name': priority.name,
+                        'description': priority.description,
+                        'icon_url': priority.iconUrl,
+                    })
+
+    @reraise_exceptions
+    def import_priority(self, priority):
+        return models.Priority(
+            backend_id=priority.id,
+            settings=self.settings,
+            name=priority.name,
+            description=priority.description,
+            icon_url=priority.iconUrl,
+        )
+
+    @reraise_exceptions
     def get_project(self, project_id):
         return self.manager.project(project_id)
 
@@ -219,9 +256,7 @@ class JiraBackend(ServiceBackend):
             args[self.get_field_id_by_name(self.reporter_field)] = issue.user.username
 
         if issue.priority:
-            mapping = settings.WALDUR_JIRA['PRIORITY_MAPPING']
-            priority = issue.get_priority_display()
-            args['priority'] = {'name': mapping.get(priority, priority)}
+            args['priority'] = {'name': issue.priority.name}
 
         if issue.parent:
             args['parent'] = {'key': issue.parent.backend_id}
@@ -276,7 +311,6 @@ class JiraBackend(ServiceBackend):
         for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
             backend_issue._parse_raw(backend_issue.raw)  # XXX: deal with weird issue in JIRA 1.0.4
             fields = backend_issue.fields
-            priority = fields.priority.name
 
             try:
                 issue_type = models.IssueType.objects.get(
@@ -288,12 +322,20 @@ class JiraBackend(ServiceBackend):
                 issue_type.save()
                 project.issue_types.add(issue_type)
 
+            try:
+                priority = models.Priority.objects.get(
+                    settings=project.settings,
+                    backend_id=fields.priority.id
+                )
+            except models.Priority.DoesNotExist:
+                priority = self.import_priority(backend_issue.raw['priority'])
+                priority.save()
+
             issue = project.issues.create(
                 type=issue_type,
                 status=fields.status.name,
                 summary=fields.summary,
-                priority=self.convert_field(
-                    priority, project.issues.model.Priority.CHOICES, mapping=settings.WALDUR_JIRA['PRIORITY_MAPPING']),
+                priority=priority,
                 description=fields.description or '',
                 resolution=fields.resolution or '',
                 updated_username=fields.creator.displayName,
