@@ -144,6 +144,18 @@ class JiraBackend(ServiceBackend):
     def pull_priorities(self):
         backend_priorities = self.manager.priorities()
         with transaction.atomic():
+            backend_priorities_map = {
+                priority.id: priority for priority in backend_priorities
+            }
+
+            waldur_priorities = {
+                priority.backend_id: priority
+                for priority in models.Priority.objects.filter(settings=self.settings)
+            }
+
+            stale_priorities = set(waldur_priorities.keys()) - set(backend_priorities_map.keys())
+            models.Priority.objects.filter(backend_id__in=stale_priorities)
+
             for priority in backend_priorities:
                 models.Priority.objects.update_or_create(
                     backend_id=priority.id,
