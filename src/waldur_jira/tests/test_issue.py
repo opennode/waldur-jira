@@ -85,7 +85,7 @@ class IssueCreateBaseTest(BaseTest):
 
     def _get_issue_payload(self, **kwargs):
         payload = {
-            'project': self.fixture.jira_project_url,
+            'jira_project': self.fixture.jira_project_url,
             'summary': 'Summary',
             'description': 'description test issue',
             'priority': self.fixture.priority_url,
@@ -139,7 +139,7 @@ class IssueCreateResourceTest(IssueCreateBaseTest):
 
     def _get_issue_payload(self, **kwargs):
         payload = {
-            'resource': structure_factories.TestNewInstanceFactory.get_url(self.resource),
+            'scope': structure_factories.TestNewInstanceFactory.get_url(self.resource),
         }
         payload.update(kwargs)
         return super(IssueCreateResourceTest, self)._get_issue_payload(**payload)

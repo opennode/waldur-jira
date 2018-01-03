@@ -45,20 +45,14 @@ class ProjectTemplate(core_models.UiDescribableMixin, structure_models.GeneralSe
 class Project(structure_models.NewResource):
 
     class Permissions(structure_models.NewResource.Permissions):
-        extra_query = dict(available_for_all=True)
+        pass
 
     service_project_link = models.ForeignKey(
         JiraServiceProjectLink, related_name='projects', on_delete=models.PROTECT)
     template = models.ForeignKey(ProjectTemplate)
 
-    reporter_field = models.CharField(max_length=64, blank=True)
-    available_for_all = models.BooleanField(default=False, help_text="Allow access to any user")
-
     def get_backend(self):
-        return super(Project, self).get_backend(
-            project=self.backend_id,
-            reporter_field=self.reporter_field
-        )
+        return super(Project, self).get_backend(project=self.backend_id)
 
     def get_access_url(self):
         base_url = self.service_project_link.service.settings.backend_url
@@ -80,7 +74,6 @@ class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStamp
     class Permissions(object):
         customer_path = 'project__service_project_link__project__customer'
         project_path = 'project__service_project_link__project'
-        extra_query = dict(project__available_for_all=True)
 
     class Meta(object):
         abstract = True
@@ -191,7 +184,6 @@ class JiraSubPropertyIssue(JiraPropertyIssue):
     class Permissions(object):
         customer_path = 'issue__project__service_project_link__project__customer'
         project_path = 'issue__project__service_project_link__project'
-        extra_query = dict(issue__project__available_for_all=True)
 
     class Meta(object):
         abstract = True
