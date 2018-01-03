@@ -280,16 +280,16 @@ class IssueSerializer(JiraPropertySerializer):
         )
 
     def create(self, validated_data):
-        jira_project = validated_data['jira_project']
+        project = validated_data['project']
         issue_type = validated_data['type']
-        if issue_type not in jira_project.issue_types.all():
-            valid_choices = ', '.join(jira_project.issue_types.values_list('name', flat=True))
+        if issue_type not in project.issue_types.all():
+            valid_choices = ', '.join(project.issue_types.values_list('name', flat=True))
             raise serializers.ValidationError({
                 'type': _('Invalid issue type. Please select one of following: %s') % valid_choices
             })
 
         priority = validated_data['priority']
-        if priority.settings != jira_project.service_project_link.service.settings:
+        if priority.settings != project.service_project_link.service.settings:
             raise serializers.ValidationError({
                 'parent': _('Priority should belong to the same JIRA provider.')
             })
@@ -301,7 +301,7 @@ class IssueSerializer(JiraPropertySerializer):
                     'parent': _('Issue type is not subtask, parent issue is not allowed.')
                 })
 
-            if parent_issue.project != jira_project:
+            if parent_issue.project != project:
                 raise serializers.ValidationError({
                     'parent': _('Parent issue should belong to the same JIRA project.')
                 })
