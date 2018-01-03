@@ -46,12 +46,10 @@ class JiraBackend(ServiceBackend):
         http://docs.atlassian.com/jira/REST/latest/
     """
 
-    def __init__(self, settings, project=None,
-                 reporter_field=None, verify=False):
+    def __init__(self, settings, project=None, verify=False):
 
         self.settings = settings
         self.project = project
-        self.reporter_field = reporter_field
         self.verify = verify
 
     def sync(self):
@@ -252,8 +250,6 @@ class JiraBackend(ServiceBackend):
             description=issue.get_description(),
             issuetype={'name': issue.type.name},
         )
-        if self.reporter_field:
-            args[self.get_field_id_by_name(self.reporter_field)] = issue.user.username
 
         if issue.priority:
             args['priority'] = {'name': issue.priority.name}

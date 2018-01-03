@@ -112,14 +112,11 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
 
 
 class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer):
-    reporter_field = serializers.CharField(write_only=True)
 
     class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
         model = models.Project
         view_name = 'jira-projects-detail'
-        fields = structure_serializers.BaseResourceImportSerializer.Meta.fields + (
-            'reporter_field', 'available_for_all',
-        )
+        fields = structure_serializers.BaseResourceImportSerializer.Meta.fields
 
     def create(self, validated_data):
         backend = self.context['service'].get_backend()
@@ -204,10 +201,13 @@ class IssueSerializer(JiraPropertySerializer):
     access_url = serializers.ReadOnlyField(source='get_access_url')
     comments = CommentSerializer(many=True, read_only=True)
 
-    resource = core_serializers.GenericRelatedField(
-        related_models=structure_models.ResourceMixin.get_all_models(), required=False)
-    resource_type = serializers.SerializerMethodField()
-    resource_name = serializers.ReadOnlyField(source='resource.name')
+    scope = core_serializers.GenericRelatedField(
+        source='resource',
+        related_models=structure_models.ResourceMixin.get_all_models(),
+        required=False
+    )
+    scope_type = serializers.SerializerMethodField()
+    scope_name = serializers.ReadOnlyField(source='resource.name')
 
     parent = serializers.HyperlinkedRelatedField(
         view_name='jira-issues-detail',
@@ -216,7 +216,38 @@ class IssueSerializer(JiraPropertySerializer):
         required=False,
     )
 
+    # For consistency with resource serializer render
+    # Waldur project as project and JIRA project as jira_project
+    project = serializers.HyperlinkedRelatedField(
+        source='project.service_project_link.project',
+        view_name='project-detail',
+        read_only=True,
+        lookup_field='uuid'
+    )
+
+    project_name = serializers.ReadOnlyField(source='project.service_project_link.project.name')
+    project_uuid = serializers.ReadOnlyField(source='project.service_project_link.project.uuid')
+
+    jira_project = serializers.HyperlinkedRelatedField(
+        queryset=models.Project.objects.all(),
+        source='project',
+        view_name='jira-projects-detail',
+        lookup_field='uuid'
+    )
+
+    jira_project_name = serializers.ReadOnlyField(source='project.name')
+    jira_project_uuid = serializers.ReadOnlyField(source='project.uuid')
+
+    resource_type = serializers.SerializerMethodField()
+    service_settings_state = serializers.SerializerMethodField()
+
     def get_resource_type(self, obj):
+        return 'JIRA.Issue'
+
+    def get_service_settings_state(self, obj):
+        return 'OK'
+
+    def get_scope_type(self, obj):
         if obj.resource:
             return SupportedServices.get_name_for_model(obj.resource_content_type.model_class())
 
@@ -224,42 +255,41 @@ class IssueSerializer(JiraPropertySerializer):
         model = models.Issue
         fields = JiraPropertySerializer.Meta.fields + (
             'project', 'project_uuid', 'project_name',
+            'jira_project', 'jira_project_uuid', 'jira_project_name',
             'key', 'summary', 'description', 'resolution', 'status',
             'priority', 'priority_name', 'priority_icon_url', 'priority_description',
             'created', 'updated', 'updated_username',
-            'access_url', 'comments',
-            'type', 'type_name', 'type_description',
-            'resource', 'resource_type', 'resource_name',
-            'parent', 'parent_key', 'parent_summary',
+            'access_url', 'comments', 'resource_type', 'service_settings_state',
+            'type', 'type_name', 'type_description', 'type_icon_url',
+            'scope', 'scope_type', 'scope_name',
+            'parent', 'parent_uuid', 'parent_summary',
         )
         read_only_fields = 'status', 'resolution', 'updated_username', 'error_message'
-        protected_fields = 'project', 'key', 'type'
+        protected_fields = 'jira_project', 'key', 'type', 'scope',
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
-            project={'lookup_field': 'uuid', 'view_name': 'jira-projects-detail'},
             type={'lookup_field': 'uuid', 'view_name': 'jira-issue-types-detail'},
             parent={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
             **JiraPropertySerializer.Meta.extra_kwargs
         )
         related_paths = dict(
-            project=('uuid', 'name'),
-            type=('name', 'description'),
-            parent=('key', 'summary'),
+            type=('icon_url', 'name', 'description'),
+            parent=('uuid', 'summary'),
             priority=('icon_url', 'name', 'description'),
             **JiraPropertySerializer.Meta.related_paths
         )
 
     def create(self, validated_data):
-        project = validated_data['project']
+        jira_project = validated_data['jira_project']
         issue_type = validated_data['type']
-        if issue_type not in project.issue_types.all():
-            valid_choices = ', '.join(project.issue_types.values_list('name', flat=True))
+        if issue_type not in jira_project.issue_types.all():
+            valid_choices = ', '.join(jira_project.issue_types.values_list('name', flat=True))
             raise serializers.ValidationError({
                 'type': _('Invalid issue type. Please select one of following: %s') % valid_choices
             })
 
         priority = validated_data['priority']
-        if priority.settings != project.service_project_link.service.settings:
+        if priority.settings != jira_project.service_project_link.service.settings:
             raise serializers.ValidationError({
                 'parent': _('Priority should belong to the same JIRA provider.')
             })
@@ -271,7 +301,7 @@ class IssueSerializer(JiraPropertySerializer):
                     'parent': _('Issue type is not subtask, parent issue is not allowed.')
                 })
 
-            if parent_issue.project != project:
+            if parent_issue.project != jira_project:
                 raise serializers.ValidationError({
                     'parent': _('Parent issue should belong to the same JIRA project.')
                 })
