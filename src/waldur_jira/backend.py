@@ -5,10 +5,10 @@ from jira import JIRA, JIRAError
 from jira.client import _get_template_list
 from jira.utils import json_loads
 
-from django.conf import settings
 from django.db import transaction
 from django.utils import six
 from django.utils.dateparse import parse_datetime
+from django.utils.functional import cached_property
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
@@ -178,12 +178,20 @@ class JiraBackend(ServiceBackend):
     def get_project(self, project_id):
         return self.manager.project(project_id)
 
+    @cached_property
+    def default_assignee(self):
+        # JIRA REST API basic authentication accepts either username or email.
+        # But create project endpoint does not accept email.
+        # Therefore we need to get username for the logged in user.
+        user = self.manager.myself()
+        return user['name']
+
     @reraise_exceptions
     def create_project(self, project):
         self.manager.create_project(
             key=project.backend_id,
             name=project.name,
-            assignee=self.settings.username,
+            assignee=self.default_assignee,
             template_name=project.template.name,
         )
         self.pull_issue_types(project)
