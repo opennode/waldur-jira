@@ -27,10 +27,18 @@ class PriorityFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class IssueFilter(django_filters.FilterSet):
+    created_before = django_filters.IsoDateTimeFilter(name="created", lookup_expr="lte")
+    created_after = django_filters.IsoDateTimeFilter(name="created", lookup_expr="gte")
     summary = django_filters.CharFilter(lookup_expr='icontains')
     description = django_filters.CharFilter(lookup_expr='icontains')
-    project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
-    project_uuid = django_filters.UUIDFilter(name='project__uuid')
+    jira_project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
+    jira_project_uuid = django_filters.UUIDFilter(name='project__uuid')
+    priority_name = django_filters.CharFilter(name='priority__name')
+    project = core_filters.URLFilter(view_name='project-detail', name='project__service_project_link__project__uuid')
+    project_uuid = django_filters.UUIDFilter(name='project__service_project_link__project__uuid')
+    type_name = django_filters.CharFilter(name='type__name')
+    updated_before = django_filters.IsoDateTimeFilter(name="updated", lookup_expr="lte")
+    updated_after = django_filters.IsoDateTimeFilter(name="updated", lookup_expr="gte")
     user_uuid = django_filters.UUIDFilter(name='user__uuid')
     key = django_filters.CharFilter(name='backend_id')
     status = django_filters.CharFilter()
@@ -38,11 +46,11 @@ class IssueFilter(django_filters.FilterSet):
     class Meta(object):
         model = models.Issue
         fields = [
-            'key',
-            'summary',
             'description',
-            'user_uuid',
+            'key',
             'status',
+            'summary',
+            'user_uuid',
         ]
         order_by = [
             'created',
