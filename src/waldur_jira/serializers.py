@@ -6,7 +6,6 @@ from django.core import validators as django_validators
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
-from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers, models as structure_models, SupportedServices
 
@@ -36,22 +35,29 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         }
 
 
-class ProjectTemplateSerializer(structure_serializers.BasePropertySerializer):
+class BaseJiraPropertySerializer(structure_serializers.BasePropertySerializer):
     class Meta(object):
-        model = models.ProjectTemplate
+        model = NotImplemented
         fields = ('url', 'uuid', 'name', 'description', 'icon_url')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
 
 
-class IssueTypeSerializer(structure_serializers.BasePropertySerializer):
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
+class ProjectTemplateSerializer(BaseJiraPropertySerializer):
+    class Meta(BaseJiraPropertySerializer.Meta):
+        model = models.ProjectTemplate
+
+
+class IssueTypeSerializer(BaseJiraPropertySerializer):
+    class Meta(BaseJiraPropertySerializer.Meta):
         model = models.IssueType
-        fields = ('url', 'name', 'description', 'icon_url')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-        }
+        fields = BaseJiraPropertySerializer.Meta.fields + ('subtask',)
+
+
+class PrioritySerializer(BaseJiraPropertySerializer):
+    class Meta(BaseJiraPropertySerializer.Meta):
+        model = models.Priority
 
 
 class ProjectSerializer(structure_serializers.BaseResourceSerializer):
@@ -87,6 +93,7 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
     template_name = serializers.ReadOnlyField(source='template.name')
     template_description = serializers.ReadOnlyField(source='template.description')
     issue_types = IssueTypeSerializer(many=True, read_only=True)
+    priorities = PrioritySerializer(many=True, read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Project
@@ -96,7 +103,7 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
         )
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'key', 'template', 'template_name', 'template_description',
-            'issue_types',
+            'issue_types', 'priorities',
         )
 
     def create(self, validated_data):
@@ -105,15 +112,11 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
 
 
 class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer):
-    impact_field = serializers.CharField(write_only=True)
-    reporter_field = serializers.CharField(write_only=True)
 
     class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
         model = models.Project
         view_name = 'jira-projects-detail'
-        fields = structure_serializers.BaseResourceImportSerializer.Meta.fields + (
-            'impact_field', 'reporter_field', 'available_for_all',
-        )
+        fields = structure_serializers.BaseResourceImportSerializer.Meta.fields
 
     def create(self, validated_data):
         backend = self.context['service'].get_backend()
@@ -128,7 +131,9 @@ class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer
         return super(ProjectImportSerializer, self).create(validated_data)
 
 
-class JiraPropertySerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+class JiraPropertySerializer(core_serializers.RestrictedSerializerMixin,
+                             core_serializers.AugmentedSerializerMixin,
+                             serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
 
     class Meta(object):
@@ -188,17 +193,61 @@ class AttachmentSerializer(JiraPropertySerializer):
 
 
 class IssueSerializer(JiraPropertySerializer):
-    impact = NaturalChoiceField(models.Issue.Impact.CHOICES)
-    priority = NaturalChoiceField(models.Issue.Priority.CHOICES)
+    priority = serializers.HyperlinkedRelatedField(
+        view_name='jira-priorities-detail',
+        queryset=models.Priority.objects.all(),
+        lookup_field='uuid',
+    )
     access_url = serializers.ReadOnlyField(source='get_access_url')
     comments = CommentSerializer(many=True, read_only=True)
-    
-    resource = core_serializers.GenericRelatedField(
-        related_models=structure_models.ResourceMixin.get_all_models(), required=False)
+
+    scope = core_serializers.GenericRelatedField(
+        source='resource',
+        related_models=structure_models.ResourceMixin.get_all_models(),
+        required=False
+    )
+    scope_type = serializers.SerializerMethodField()
+    scope_name = serializers.ReadOnlyField(source='resource.name')
+
+    parent = serializers.HyperlinkedRelatedField(
+        view_name='jira-issues-detail',
+        queryset=models.Issue.objects.all(),
+        lookup_field='uuid',
+        required=False,
+    )
+
+    # For consistency with resource serializer render
+    # Waldur project as project and JIRA project as jira_project
+    project = serializers.HyperlinkedRelatedField(
+        source='project.service_project_link.project',
+        view_name='project-detail',
+        read_only=True,
+        lookup_field='uuid'
+    )
+
+    project_name = serializers.ReadOnlyField(source='project.service_project_link.project.name')
+    project_uuid = serializers.ReadOnlyField(source='project.service_project_link.project.uuid')
+
+    jira_project = serializers.HyperlinkedRelatedField(
+        queryset=models.Project.objects.all(),
+        source='project',
+        view_name='jira-projects-detail',
+        lookup_field='uuid'
+    )
+
+    jira_project_name = serializers.ReadOnlyField(source='project.name')
+    jira_project_uuid = serializers.ReadOnlyField(source='project.uuid')
+
     resource_type = serializers.SerializerMethodField()
-    resource_name = serializers.ReadOnlyField(source='resource.name')
+    service_settings_state = serializers.SerializerMethodField()
 
     def get_resource_type(self, obj):
+        return 'JIRA.Issue'
+
+    def get_service_settings_state(self, obj):
+        return 'OK'
+
+    def get_scope_type(self, obj):
         if obj.resource:
             return SupportedServices.get_name_for_model(obj.resource_content_type.model_class())
 
@@ -206,23 +255,27 @@ class IssueSerializer(JiraPropertySerializer):
         model = models.Issue
         fields = JiraPropertySerializer.Meta.fields + (
             'project', 'project_uuid', 'project_name',
+            'jira_project', 'jira_project_uuid', 'jira_project_name',
             'key', 'summary', 'description', 'resolution', 'status',
-            'priority', 'impact', 'created', 'updated', 'updated_username',
-            'access_url', 'comments',
-            'type', 'type_name', 'type_description',
-            'resource', 'resource_type', 'resource_name',
+            'priority', 'priority_name', 'priority_icon_url', 'priority_description',
+            'created', 'updated', 'updated_username',
+            'access_url', 'comments', 'resource_type', 'service_settings_state',
+            'type', 'type_name', 'type_description', 'type_icon_url',
+            'scope', 'scope_type', 'scope_name',
+            'parent', 'parent_uuid', 'parent_summary',
         )
         read_only_fields = 'status', 'resolution', 'updated_username', 'error_message'
-        protected_fields = 'project', 'key', 'type'
+        protected_fields = 'jira_project', 'key', 'type', 'scope',
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
-            project={'lookup_field': 'uuid', 'view_name': 'jira-projects-detail'},
             type={'lookup_field': 'uuid', 'view_name': 'jira-issue-types-detail'},
+            parent={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
             **JiraPropertySerializer.Meta.extra_kwargs
         )
         related_paths = dict(
-            project=('uuid', 'name'),
-            type=('name', 'description'),
+            type=('icon_url', 'name', 'description'),
+            parent=('uuid', 'summary'),
+            priority=('icon_url', 'name', 'description'),
             **JiraPropertySerializer.Meta.related_paths
         )
 
@@ -234,6 +287,25 @@ class IssueSerializer(JiraPropertySerializer):
             raise serializers.ValidationError({
                 'type': _('Invalid issue type. Please select one of following: %s') % valid_choices
             })
+
+        priority = validated_data['priority']
+        if priority.settings != project.service_project_link.service.settings:
+            raise serializers.ValidationError({
+                'parent': _('Priority should belong to the same JIRA provider.')
+            })
+
+        parent_issue = validated_data.get('parent')
+        if parent_issue:
+            if not issue_type.subtask:
+                raise serializers.ValidationError({
+                    'parent': _('Issue type is not subtask, parent issue is not allowed.')
+                })
+
+            if parent_issue.project != project:
+                raise serializers.ValidationError({
+                    'parent': _('Parent issue should belong to the same JIRA project.')
+                })
+
         return super(IssueSerializer, self).create(validated_data)
 
 
@@ -336,14 +408,15 @@ class WebHookReceiverSerializer(serializers.Serializer):
             raise serializers.ValidationError(e)
 
         backend = project.get_backend()
-        priority = backend.convert_field(
-            fields['priority']['name'], models.Issue.Priority.CHOICES, mapping=settings.WALDUR_JIRA['PRIORITY_MAPPING'])
-        if project.impact_field:
-            impact_field = backend.get_field_id_by_name(project.impact_field)
-            impact_value = self.initial_data['issue']['fields'].get(impact_field)
-            impact = backend.convert_field(impact_value, models.Issue.Impact.CHOICES)
-        else:
-            impact = 0
+
+        try:
+            priority = models.Priority.objects.get(
+                settings=project.settings,
+                backend_id=fields.priority.id
+            )
+        except models.Priority.DoesNotExist:
+            priority = self.import_priority(fields['priority'])
+            priority.save()
 
         try:
             issue_type = models.IssueType.objects.get(
@@ -363,7 +436,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     type=issue_type,
                     status=fields['status']['name'],
                     summary=fields['summary'],
-                    impact=impact,
                     priority=priority,
                     description=fields['description'] or '',
                     resolution=fields['resolution'] or '',
@@ -388,7 +460,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
                 # issue update
                 else:
-                    issue.impact = impact
                     issue.priority = priority
                     issue.summary = fields['summary']
                     issue.description = fields['description'] or ''

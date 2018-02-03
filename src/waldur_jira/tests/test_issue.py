@@ -65,10 +65,9 @@ class IssueGetTest(BaseTest):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class IssueCreateTest(BaseTest):
+class IssueCreateBaseTest(BaseTest):
     def setUp(self):
-        super(IssueCreateTest, self).setUp()
-        self.resource = structure_factories.TestNewInstanceFactory()
+        super(IssueCreateBaseTest, self).setUp()
         self.fixture.jira_project.issue_types.add(self.fixture.issue_type)
 
         self.jira_patcher = mock.patch('waldur_jira.backend.JIRA')
@@ -81,8 +80,25 @@ class IssueCreateTest(BaseTest):
         })
 
     def tearDown(self):
-        super(IssueCreateTest, self).tearDown()
+        super(IssueCreateBaseTest, self).tearDown()
         mock.patch.stopall()
+
+    def _get_issue_payload(self, **kwargs):
+        payload = {
+            'jira_project': self.fixture.jira_project_url,
+            'summary': 'Summary',
+            'description': 'description test issue',
+            'priority': self.fixture.priority_url,
+            'type': self.fixture.issue_type_url,
+        }
+        payload.update(kwargs)
+        return payload
+
+
+class IssueCreateResourceTest(IssueCreateBaseTest):
+    def setUp(self):
+        super(IssueCreateResourceTest, self).setUp()
+        self.resource = structure_factories.TestNewInstanceFactory()
 
     def test_create_issue_with_resource(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -121,16 +137,61 @@ class IssueCreateTest(BaseTest):
         response = self.client.post(factories.IssueFactory.get_list_url(), self._get_issue_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def _get_issue_payload(self):
-        return {
-            'project': self.fixture.jira_project_url,
-            'summary': 'Summary',
-            'description': 'description test issue',
-            'priority': 'Minor',
-            'impact': 'Small - Partial loss of service, one person affected',
-            'resource': structure_factories.TestNewInstanceFactory.get_url(self.resource),
-            'type': self.fixture.issue_type_url,
+    def _get_issue_payload(self, **kwargs):
+        payload = {
+            'scope': structure_factories.TestNewInstanceFactory.get_url(self.resource),
         }
+        payload.update(kwargs)
+        return super(IssueCreateResourceTest, self)._get_issue_payload(**payload)
+
+
+class IssueCreateSubtaskTest(IssueCreateBaseTest):
+    def setUp(self):
+        super(IssueCreateSubtaskTest, self).setUp()
+        self.subtask_type = factories.IssueTypeFactory(
+            subtask=True,
+            name='Sub-task',
+            settings=self.fixture.service_settings
+        )
+        self.fixture.jira_project.issue_types.add(self.subtask_type)
+
+    def test_parent_issue_may_be_specified_for_subtask(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        payload = self._get_issue_payload(
+            parent=self.issue_url,
+            type=factories.IssueTypeFactory.get_url(self.subtask_type),
+        )
+        response = self.client.post(factories.IssueFactory.get_list_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        self.create_issue.assert_called_once_with(
+            project=self.fixture.jira_project.backend_id,
+            summary='Summary',
+            description='description test issue',
+            issuetype={'name': self.subtask_type.name},
+            priority={'name': self.fixture.priority.name},
+            parent={'key': self.issue.backend_id},
+        )
+
+    def test_parent_issue_valid_for_subtask_only(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        payload = self._get_issue_payload(
+            parent=self.issue_url,
+        )
+        response = self.client.post(factories.IssueFactory.get_list_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_parent_issue_should_belong_to_the_same_project(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        payload = self._get_issue_payload(
+            parent=factories.IssueFactory.get_url(),
+            type=factories.IssueTypeFactory.get_url(self.subtask_type),
+        )
+        response = self.client.post(factories.IssueFactory.get_list_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 @mock.patch('waldur_jira.executors.IssueUpdateExecutor.execute')

@@ -7,6 +7,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
@@ -36,26 +37,22 @@ class ProjectTemplate(core_models.UiDescribableMixin, structure_models.GeneralSe
     def get_url_name(cls):
         return 'jira-project-templates'
 
+    @classmethod
+    def get_backend_fields(cls):
+        return super(ProjectTemplate, cls).get_backend_fields() + ('icon_url', 'description')
+
 
 class Project(structure_models.NewResource):
 
     class Permissions(structure_models.NewResource.Permissions):
-        extra_query = dict(available_for_all=True)
+        pass
 
     service_project_link = models.ForeignKey(
         JiraServiceProjectLink, related_name='projects', on_delete=models.PROTECT)
     template = models.ForeignKey(ProjectTemplate)
 
-    impact_field = models.CharField(max_length=64, blank=True)
-    reporter_field = models.CharField(max_length=64, blank=True)
-    available_for_all = models.BooleanField(default=False, help_text="Allow access to any user")
-
     def get_backend(self):
-        return super(Project, self).get_backend(
-            project=self.backend_id,
-            impact_field=self.impact_field,
-            reporter_field=self.reporter_field
-        )
+        return super(Project, self).get_backend(project=self.backend_id)
 
     def get_access_url(self):
         base_url = self.service_project_link.service.settings.backend_url
@@ -65,6 +62,10 @@ class Project(structure_models.NewResource):
     def get_url_name(cls):
         return 'jira-projects'
 
+    @property
+    def priorities(self):
+        return Priority.objects.filter(settings=self.service_project_link.service.settings)
+
 
 class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
@@ -73,7 +74,6 @@ class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStamp
     class Permissions(object):
         customer_path = 'project__service_project_link__project__customer'
         project_path = 'project__service_project_link__project'
-        extra_query = dict(project__available_for_all=True)
 
     class Meta(object):
         abstract = True
@@ -82,6 +82,11 @@ class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStamp
 @python_2_unicode_compatible
 class IssueType(core_models.UiDescribableMixin, structure_models.ServiceProperty):
     projects = models.ManyToManyField(Project, related_name='issue_types')
+    subtask = models.BooleanField(default=False)
+
+    class Meta(structure_models.ServiceProperty.Meta):
+        verbose_name = _('Issue type')
+        verbose_name_plural = _('Issue types')
 
     @classmethod
     def get_url_name(cls):
@@ -90,44 +95,43 @@ class IssueType(core_models.UiDescribableMixin, structure_models.ServiceProperty
     def __str__(self):
         return self.name
 
+    @classmethod
+    def get_backend_fields(cls):
+        return super(IssueType, cls).get_backend_fields() + (
+            'icon_url', 'description', 'subtask', 'projects'
+        )
+
+
+@python_2_unicode_compatible
+class Priority(core_models.UiDescribableMixin, structure_models.ServiceProperty):
+
+    class Meta(structure_models.ServiceProperty.Meta):
+        verbose_name = _('Priority')
+        verbose_name_plural = _('Priorities')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'jira-priorities'
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_backend_fields(cls):
+        return super(Priority, cls).get_backend_fields() + ('icon_url', 'description')
+
 
 @python_2_unicode_compatible
 class Issue(structure_models.StructureLoggableMixin,
             JiraPropertyIssue):
 
-    class Priority:
-        UNKNOWN = 0
-        MINOR = 1
-        MAJOR = 2
-        CRITICAL = 3
-
-        CHOICES = (
-            (UNKNOWN, 'n/a'),
-            (MINOR, 'Minor'),
-            (MAJOR, 'Major'),
-            (CRITICAL, 'Critical'),
-        )
-
-    class Impact:
-        UNKNOWN = 0
-        SMALL = 1
-        MEDIUM = 2
-        LARGE = 3
-
-        CHOICES = (
-            (UNKNOWN, 'n/a'),
-            (SMALL, 'Small - Partial loss of service, one person affected'),
-            (MEDIUM, 'Medium - One department or service is affected'),
-            (LARGE, 'Large - Whole organization or all services are affected'),
-        )
-
     type = models.ForeignKey(IssueType)
+    parent = models.ForeignKey('Issue', blank=True, null=True)
     project = models.ForeignKey(Project, related_name='issues')
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     resolution = models.CharField(blank=True, max_length=255)
-    priority = models.SmallIntegerField(choices=Priority.CHOICES, default=0)
-    impact = models.SmallIntegerField(choices=Impact.CHOICES, default=0)
+    priority = models.ForeignKey(Priority)
     status = models.CharField(max_length=255)
     updated = models.DateTimeField(auto_now_add=True)
     updated_username = models.CharField(max_length=255, blank=True)
@@ -180,7 +184,6 @@ class JiraSubPropertyIssue(JiraPropertyIssue):
     class Permissions(object):
         customer_path = 'issue__project__service_project_link__project__customer'
         project_path = 'issue__project__service_project_link__project'
-        extra_query = dict(issue__project__available_for_all=True)
 
     class Meta(object):
         abstract = True

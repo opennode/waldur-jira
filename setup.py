@@ -6,14 +6,14 @@ test_requires = [
 ]
 
 install_requires = [
-    'waldur-core>=0.151.1',
+    'waldur-core>=0.151.3',
     'jira>=1.0.4',
 ]
 
 
 setup(
     name='waldur-jira',
-    version='0.5.2',
+    version='0.6.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

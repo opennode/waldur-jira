@@ -49,6 +49,7 @@ class ProjectViewSet(structure_views.ResourceViewSet):
     update_executor = executors.ProjectUpdateExecutor
     delete_executor = executors.ProjectDeleteExecutor
     async_executor = False
+    use_atomic_transaction = True
 
     destroy_permissions = [structure_permissions.is_staff]
 
@@ -57,6 +58,13 @@ class IssueTypeViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.IssueType.objects.all()
     filter_class = filters.IssueTypeFilter
     serializer_class = serializers.IssueTypeSerializer
+    lookup_field = 'uuid'
+
+
+class PriorityViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Priority.objects.all()
+    serializer_class = serializers.PrioritySerializer
+    filter_class = filters.PriorityFilter
     lookup_field = 'uuid'
 
 
@@ -69,6 +77,7 @@ class IssueViewSet(JiraPermissionMixin,
     update_executor = executors.IssueUpdateExecutor
     delete_executor = executors.IssueDeleteExecutor
     async_executor = False
+    use_atomic_transaction = True
 
 
 class CommentViewSet(JiraPermissionMixin,
@@ -80,6 +89,7 @@ class CommentViewSet(JiraPermissionMixin,
     update_executor = executors.CommentUpdateExecutor
     delete_executor = executors.CommentDeleteExecutor
     async_executor = False
+    use_atomic_transaction = True
 
 
 class AttachmentViewSet(JiraPermissionMixin,
@@ -94,6 +104,7 @@ class AttachmentViewSet(JiraPermissionMixin,
     create_executor = executors.AttachmentCreateExecutor
     delete_executor = executors.AttachmentDeleteExecutor
     async_executor = False
+    use_atomic_transaction = True
     lookup_field = 'uuid'
 
 

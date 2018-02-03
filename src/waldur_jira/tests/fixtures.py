@@ -51,3 +51,11 @@ class JiraFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def issue_type_url(self):
         return factories.IssueTypeFactory.get_url(self.issue_type)
+
+    @cached_property
+    def priority(self):
+        return factories.PriorityFactory(settings=self.service_settings)
+
+    @cached_property
+    def priority_url(self):
+        return factories.PriorityFactory.get_url(self.priority)

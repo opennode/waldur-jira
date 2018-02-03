@@ -5,10 +5,10 @@ from jira import JIRA, JIRAError
 from jira.client import _get_template_list
 from jira.utils import json_loads
 
-from django.conf import settings
 from django.db import transaction
 from django.utils import six
 from django.utils.dateparse import parse_datetime
+from django.utils.functional import cached_property
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
@@ -46,18 +46,16 @@ class JiraBackend(ServiceBackend):
         http://docs.atlassian.com/jira/REST/latest/
     """
 
-    def __init__(self, settings, project=None, impact_field=None,
-                 reporter_field=None, verify=False):
+    def __init__(self, settings, project=None, verify=False):
 
         self.settings = settings
         self.project = project
-        self.impact_field = impact_field
-        self.reporter_field = reporter_field
         self.verify = verify
 
     def sync(self):
         self.ping(raise_exception=True)
         self.pull_project_templates()
+        self.pull_priorities()
 
     def ping(self, raise_exception=False):
         try:
@@ -141,15 +139,59 @@ class JiraBackend(ServiceBackend):
                     })
 
     @reraise_exceptions
+    def pull_priorities(self):
+        backend_priorities = self.manager.priorities()
+        with transaction.atomic():
+            backend_priorities_map = {
+                priority.id: priority for priority in backend_priorities
+            }
+
+            waldur_priorities = {
+                priority.backend_id: priority
+                for priority in models.Priority.objects.filter(settings=self.settings)
+            }
+
+            stale_priorities = set(waldur_priorities.keys()) - set(backend_priorities_map.keys())
+            models.Priority.objects.filter(backend_id__in=stale_priorities)
+
+            for priority in backend_priorities:
+                models.Priority.objects.update_or_create(
+                    backend_id=priority.id,
+                    settings=self.settings,
+                    defaults={
+                        'name': priority.name,
+                        'description': priority.description,
+                        'icon_url': priority.iconUrl,
+                    })
+
+    @reraise_exceptions
+    def import_priority(self, priority):
+        return models.Priority(
+            backend_id=priority.id,
+            settings=self.settings,
+            name=priority.name,
+            description=priority.description,
+            icon_url=priority.iconUrl,
+        )
+
+    @reraise_exceptions
     def get_project(self, project_id):
         return self.manager.project(project_id)
+
+    @cached_property
+    def default_assignee(self):
+        # JIRA REST API basic authentication accepts either username or email.
+        # But create project endpoint does not accept email.
+        # Therefore we need to get username for the logged in user.
+        user = self.manager.myself()
+        return user['name']
 
     @reraise_exceptions
     def create_project(self, project):
         self.manager.create_project(
             key=project.backend_id,
             name=project.name,
-            assignee=self.settings.username,
+            assignee=self.default_assignee,
             template_name=project.template.name,
         )
         self.pull_issue_types(project)
@@ -185,7 +227,9 @@ class JiraBackend(ServiceBackend):
         for issue_type_id in common_issue_types:
             issue_type = project_issue_types[issue_type_id]
             imported_issue_type = self.import_issue_type(backend_issue_types[issue_type_id])
-            update_pulled_fields(issue_type, imported_issue_type, ('name', 'description', 'icon_url'))
+            update_pulled_fields(issue_type, imported_issue_type, (
+                'name', 'description', 'icon_url', 'subtask'
+            ))
 
     def import_issue_type(self, backend_issue_type):
         return models.IssueType(
@@ -194,6 +238,7 @@ class JiraBackend(ServiceBackend):
             name=backend_issue_type.name,
             description=backend_issue_type.description,
             icon_url=backend_issue_type.iconUrl,
+            subtask=backend_issue_type.subtask,
         )
 
     @reraise_exceptions
@@ -213,16 +258,12 @@ class JiraBackend(ServiceBackend):
             description=issue.get_description(),
             issuetype={'name': issue.type.name},
         )
-        if self.reporter_field:
-            args[self.get_field_id_by_name(self.reporter_field)] = issue.user.username
-
-        if self.impact_field and issue.impact:
-            args[self.get_field_id_by_name(self.impact_field)] = issue.get_impact_display()
 
         if issue.priority:
-            mapping = settings.WALDUR_JIRA['PRIORITY_MAPPING']
-            priority = issue.get_priority_display()
-            args['priority'] = {'name': mapping.get(priority, priority)}
+            args['priority'] = {'name': issue.priority.name}
+
+        if issue.parent:
+            args['parent'] = {'key': issue.parent.backend_id}
 
         backend_issue = self.manager.create_issue(**args)
         issue.updated_username = issue.user.username
@@ -271,12 +312,9 @@ class JiraBackend(ServiceBackend):
 
     @reraise_exceptions
     def import_project_issues(self, project):
-        impact_field = self.get_field_id_by_name(self.impact_field) if self.impact_field else None
         for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
             backend_issue._parse_raw(backend_issue.raw)  # XXX: deal with weird issue in JIRA 1.0.4
             fields = backend_issue.fields
-            impact = getattr(fields, impact_field, None)
-            priority = fields.priority.name
 
             try:
                 issue_type = models.IssueType.objects.get(
@@ -288,13 +326,20 @@ class JiraBackend(ServiceBackend):
                 issue_type.save()
                 project.issue_types.add(issue_type)
 
+            try:
+                priority = models.Priority.objects.get(
+                    settings=project.settings,
+                    backend_id=fields.priority.id
+                )
+            except models.Priority.DoesNotExist:
+                priority = self.import_priority(backend_issue.raw['priority'])
+                priority.save()
+
             issue = project.issues.create(
-                impact=self.convert_field(impact, project.issues.model.Impact.CHOICES),
                 type=issue_type,
                 status=fields.status.name,
                 summary=fields.summary,
-                priority=self.convert_field(
-                    priority, project.issues.model.Priority.CHOICES, mapping=settings.WALDUR_JIRA['PRIORITY_MAPPING']),
+                priority=priority,
                 description=fields.description or '',
                 resolution=fields.resolution or '',
                 updated_username=fields.creator.displayName,
