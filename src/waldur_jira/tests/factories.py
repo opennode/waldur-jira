@@ -138,6 +138,7 @@ class IssueFactory(factory.DjangoModelFactory):
     type = factory.SubFactory(IssueTypeFactory)
     priority = factory.SubFactory(PriorityFactory)
     backend_id = factory.Sequence(lambda n: 'TST-%s' % n)
+    status = factory.Sequence(lambda n: 'STATUS-%s' % n)
     project = factory.SubFactory(ProjectFactory)
 
     @classmethod

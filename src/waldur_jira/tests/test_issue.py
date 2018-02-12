@@ -59,6 +59,44 @@ class IssueGetTest(BaseTest):
         response = self.client.get(self.issue_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_staff_can_filter_issues_by_statuses(self):
+        self.client.force_authenticate(self.fixture.staff)
+        factories.IssueFactory(
+            project=self.fixture.jira_project,
+            status='OK',
+        )
+        factories.IssueFactory(
+            project=self.fixture.jira_project,
+            status='NOTOK',
+        )
+
+        response = self.client.get(factories.IssueFactory.get_list_url() + "?status=OK")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.client.get(factories.IssueFactory.get_list_url() + "?status=OK&status=NOTOK")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_staff_can_filter_issues_by_priorities(self):
+        self.client.force_authenticate(self.fixture.staff)
+        factories.IssueFactory(
+            project=self.fixture.jira_project,
+            priority=factories.PriorityFactory(name='HIGH')
+        )
+        factories.IssueFactory(
+            project=self.fixture.jira_project,
+            priority=factories.PriorityFactory(name='LOW')
+        )
+
+        response = self.client.get(factories.IssueFactory.get_list_url() + "?priority_name=HIGH")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.client.get(factories.IssueFactory.get_list_url() + "?priority_name=HIGH&priority_name=LOW")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
     def test_non_author_can_not_get_issue(self):
         self.client.force_authenticate(self.non_author)
         response = self.client.get(self.issue_url)

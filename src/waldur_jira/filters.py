@@ -33,7 +33,11 @@ class IssueFilter(django_filters.FilterSet):
     description = django_filters.CharFilter(lookup_expr='icontains')
     jira_project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
     jira_project_uuid = django_filters.UUIDFilter(name='project__uuid')
-    priority_name = django_filters.CharFilter(name='priority__name')
+    priority_name = django_filters.ModelMultipleChoiceFilter(
+        name='priority__name',
+        to_field_name='name',
+        queryset=models.Priority.objects.all()
+    )
     project = core_filters.URLFilter(view_name='project-detail', name='project__service_project_link__project__uuid')
     project_uuid = django_filters.UUIDFilter(name='project__service_project_link__project__uuid')
     type_name = django_filters.CharFilter(name='type__name')
@@ -41,7 +45,7 @@ class IssueFilter(django_filters.FilterSet):
     updated_after = django_filters.IsoDateTimeFilter(name="updated", lookup_expr="gte")
     user_uuid = django_filters.UUIDFilter(name='user__uuid')
     key = django_filters.CharFilter(name='backend_id')
-    status = django_filters.CharFilter()
+    status = django_filters.AllValuesMultipleFilter()
 
     class Meta(object):
         model = models.Issue
