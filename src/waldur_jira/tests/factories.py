@@ -98,6 +98,7 @@ class IssueTypeFactory(factory.DjangoModelFactory):
     settings = factory.SubFactory(JiraServiceSettingsFactory)
     name = factory.Sequence(lambda n: 'issue-type-%s' % n)
     backend_id = factory.Sequence(lambda n: 'issue-type-%s' % n)
+    icon_url = factory.Sequence(lambda n: 'http://icon.com/icon_url-%s' % n)
 
     @classmethod
     def get_url(cls, issue=None, action=None):
@@ -118,6 +119,7 @@ class PriorityFactory(factory.DjangoModelFactory):
     settings = factory.SubFactory(JiraServiceSettingsFactory)
     name = factory.Sequence(lambda n: 'priority-%s' % n)
     backend_id = factory.Sequence(lambda n: 'priority-%s' % n)
+    icon_url = factory.Sequence(lambda n: 'http://icon.com/icon_url-%s' % n)
 
     @classmethod
     def get_url(cls, issue=None, action=None):

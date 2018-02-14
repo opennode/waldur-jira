@@ -140,6 +140,8 @@ class Issue(structure_models.StructureLoggableMixin,
     resource_object_id = models.PositiveIntegerField(blank=True, null=True)
     resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
+    resolution_sla = models.IntegerField(blank=True, null=True)
+
     tracker = FieldTracker()
 
     def get_backend(self):

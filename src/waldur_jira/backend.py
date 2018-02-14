@@ -4,16 +4,18 @@ import logging
 from jira import JIRA, JIRAError
 from jira.client import _get_template_list
 from jira.utils import json_loads
+from rest_framework import status
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import six
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
 from . import models
-
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,7 @@ def reraise_exceptions(func):
             return func(self, *args, **kwargs)
         except JIRAError as e:
             six.reraise(JiraBackendError, e)
+
     return wrapped
 
 
@@ -67,6 +70,7 @@ class JiraBackend(ServiceBackend):
         else:
             return True
 
+    @reraise_exceptions
     def get_resources_for_import(self):
         return [{
             'name': proj.name,
@@ -124,6 +128,7 @@ class JiraBackend(ServiceBackend):
         json_data = json_loads(response)
         return _get_template_list(json_data)
 
+    @reraise_exceptions
     def pull_project_templates(self):
         backend_templates = self.get_project_templates()
         with transaction.atomic():
@@ -170,7 +175,7 @@ class JiraBackend(ServiceBackend):
             backend_id=priority.id,
             settings=self.settings,
             name=priority.name,
-            description=priority.description,
+            description=getattr(property, 'description', ''),
             icon_url=priority.iconUrl,
         )
 
@@ -266,21 +271,58 @@ class JiraBackend(ServiceBackend):
             args['parent'] = {'key': issue.parent.backend_id}
 
         backend_issue = self.manager.create_issue(**args)
-        issue.updated_username = issue.user.username
         issue.backend_id = backend_issue.key
-        issue.resolution = backend_issue.fields.resolution or ''
-        issue.status = backend_issue.fields.status.name or ''
-        issue.save(update_fields=['backend_id', 'resolution', 'status', 'type', 'updated_username'])
+        self._backend_issue_to_issue(backend_issue, issue)
+        issue.save()
 
-    @reraise_exceptions
+    def create_issue_from_jira(self, project, key):
+        backend_issue = self.get_backend_issue(key)
+        if not backend_issue:
+            return
+
+        if models.Issue.objects.filter(backend_id=key, project=project).count():
+            # if this issue was created
+            return
+
+        issue = models.Issue(project=project,
+                             backend_id=key,
+                             state=models.Issue.States.OK)
+        self._backend_issue_to_issue(backend_issue, issue)
+        issue.save()
+
     def update_issue(self, issue):
-        backend_issue = self.manager.issue(issue.backend_id)
+        backend_issue = self.get_backend_issue(issue.backend_id)
+        if not backend_issue:
+            return
+
         backend_issue.update(summary=issue.summary, description=issue.get_description())
 
-    @reraise_exceptions
+    def update_issue_from_jira(self, issue):
+        start_time = timezone.now()
+
+        backend_issue = self.get_backend_issue(issue.backend_id)
+        if not backend_issue:
+            return
+
+        issue.refresh_from_db()
+
+        if issue.modified > start_time:
+            # If while we make backend request this issue was updated in waldur or
+            # from other webhook
+            return
+
+        self._backend_issue_to_issue(backend_issue, issue)
+        issue.save()
+
     def delete_issue(self, issue):
-        backend_issue = self.manager.issue(issue.backend_id)
-        backend_issue.delete()
+        backend_issue = self.get_backend_issue(issue.backend_id)
+        if backend_issue:
+            backend_issue.delete()
+
+    def delete_issue_from_jira(self, issue):
+        backend_issue = self.get_backend_issue(issue.backend_id)
+        if not backend_issue:
+            issue.delete()
 
     @reraise_exceptions
     def create_comment(self, comment):
@@ -288,65 +330,76 @@ class JiraBackend(ServiceBackend):
         comment.backend_id = backend_comment.id
         comment.save(update_fields=['backend_id'])
 
-    @reraise_exceptions
+    def create_comment_from_jira(self, issue, comment_backend_id):
+        backend_comment = self.get_backend_comment(issue.backend_id, comment_backend_id)
+        if not backend_comment:
+            return
+
+        models.Comment.objects.create(
+            issue=issue,
+            backend_id=comment_backend_id,
+            message=models.Comment().clean_message(backend_comment.body),
+            state=models.Comment.States.OK,
+        )
+
     def update_comment(self, comment):
-        backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
+        backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
+        if not backend_comment:
+            return
+        
         backend_comment.update(body=comment.prepare_message())
+
+    def update_comment_from_jira(self, comment):
+        backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
+        if not backend_comment:
+            return 
+
+        comment.message = models.Comment().clean_message(backend_comment.body)
+        comment.state = models.Comment.States.OK
+        comment.save(update_fields=['message', 'state'])
 
     @reraise_exceptions
     def delete_comment(self, comment):
-        backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
-        backend_comment.delete()
+        backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
+        if backend_comment:
+            backend_comment.delete()
+
+    def delete_comment_from_jira(self, comment):
+        backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
+        if not backend_comment:
+            comment.delete()
 
     @reraise_exceptions
     def add_attachment(self, attachment):
-        backend_issue = self.manager.issue(attachment.issue.backend_id)
+        backend_issue = self.get_backend_issue(attachment.issue.backend_id)
+        if not backend_issue:
+            return
+
         backend_attachment = self.manager.add_attachment(backend_issue, attachment.file)
         attachment.backend_id = backend_attachment.id
         attachment.save(update_fields=['backend_id'])
 
     @reraise_exceptions
     def remove_attachment(self, attachment):
-        backend_attachment = self.manager.attachment(attachment.backend_id)
-        backend_attachment.delete()
+        backend_attachment = self.get_backend_attachment(attachment.backend_id)
+        if backend_attachment:
+            backend_attachment.delete()
 
     @reraise_exceptions
     def import_project_issues(self, project):
         for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
             backend_issue._parse_raw(backend_issue.raw)  # XXX: deal with weird issue in JIRA 1.0.4
-            fields = backend_issue.fields
-
+            key = backend_issue.key
             try:
-                issue_type = models.IssueType.objects.get(
-                    settings=project.settings,
-                    backend_id=fields.issuetype.id
-                )
-            except models.IssueType.DoesNotExist:
-                issue_type = self.import_issue_type(backend_issue.raw['issuetype'])
-                issue_type.save()
-                project.issue_types.add(issue_type)
-
-            try:
-                priority = models.Priority.objects.get(
-                    settings=project.settings,
-                    backend_id=fields.priority.id
-                )
-            except models.Priority.DoesNotExist:
-                priority = self.import_priority(backend_issue.raw['priority'])
-                priority.save()
-
-            issue = project.issues.create(
-                type=issue_type,
-                status=fields.status.name,
-                summary=fields.summary,
-                priority=priority,
-                description=fields.description or '',
-                resolution=fields.resolution or '',
-                updated_username=fields.creator.displayName,
-                backend_id=backend_issue.key,
-                created=parse_datetime(fields.created),
-                updated=parse_datetime(fields.updated),
-                state=project.issues.model.States.OK)
+                issue = models.Issue.objects.get(project=project, backend_id=key)
+                self._backend_issue_to_issue(backend_issue, issue)
+                issue.save()
+            except models.Issue.DoesNotExist:
+                issue = models.Issue(project=project,
+                                     backend_id=key,
+                                     state=models.Issue.States.OK)
+                self._backend_issue_to_issue(backend_issue, issue)
+                issue.save()
 
             for backend_comment in self.manager.comments(backend_issue):
                 tmp = issue.comments.model()
@@ -357,3 +410,77 @@ class JiraBackend(ServiceBackend):
                     created=parse_datetime(backend_comment.created),
                     backend_id=backend_comment.id,
                     state=issue.comments.model.States.OK)
+
+    def get_backend_comment(self, issue_backend_id, comment_backend_id):
+        return self._get_backend_obj('comment')(issue_backend_id, comment_backend_id)
+
+    def get_backend_issue(self, issue_backend_id):
+        return self._get_backend_obj('issue')(issue_backend_id)
+
+    def get_backend_attachment(self, attachment_backend_id):
+        return self._get_backend_obj('attachment')(attachment_backend_id)
+
+    @reraise_exceptions
+    def _get_backend_obj(self, method):
+        def f(*args, **kwargs):
+            try:
+                func = getattr(self.manager, method)
+                backend_obj = func(*args, **kwargs)
+            except JIRAError as e:
+                if e.status_code == status.HTTP_404_NOT_FOUND:
+                    # This obj has been already deleted on backend
+                    return
+                else:
+                    raise e
+            return backend_obj
+        return f
+
+    def _backend_issue_to_issue(self, backend_issue, issue):
+        priority = self._get_or_create_priority(issue.project, backend_issue.fields.priority)
+        issue_type = self._get_or_create_type(issue.project, backend_issue.fields.issuetype)
+        resolution_sla = self._get_resolution_sla(backend_issue)
+
+        issue.priority = priority
+        issue.summary = backend_issue.fields.summary
+        issue.description = backend_issue.fields.description or ''
+        issue.type = issue_type
+        issue.status = backend_issue.fields.status.name or ''
+        issue.resolution = (backend_issue.fields.resolution and backend_issue.fields.resolution.name) or ''
+        issue.updated_username = backend_issue.fields.creator.name or ''
+        issue.resolution_sla = resolution_sla
+
+    def _get_or_create_priority(self, project, backend_priority):
+        try:
+            priority = models.Priority.objects.get(
+                settings=project.service_project_link.service.settings,
+                backend_id=backend_priority.id
+            )
+        except models.Priority.DoesNotExist:
+            priority = self.import_priority(backend_priority)
+            priority.save()
+        return priority
+
+    def _get_or_create_type(self, project, backend_issue_type):
+        try:
+            issue_type = models.IssueType.objects.get(
+                settings=project.service_project_link.service.settings,
+                backend_id=backend_issue_type.id
+            )
+        except models.IssueType.DoesNotExist:
+            issue_type = self.import_issue_type(backend_issue_type)
+            issue_type.save()
+            project.issue_types.add(issue_type)
+        return issue_type
+
+    def _get_resolution_sla(self, backend_issue):
+        issue_settings = settings.WALDUR_JIRA.get('ISSUE')
+        field_name = self.get_field_id_by_name(issue_settings['resolution_sla_field'])
+        value = getattr(backend_issue.fields, field_name, None)
+
+        if value and hasattr(value, 'ongoingCycle'):
+            milliseconds = value.ongoingCycle.remainingTime.millis
+            if milliseconds:
+                resolution_sla = milliseconds / 1000
+        else:
+            resolution_sla = None
+        return resolution_sla
