@@ -153,3 +153,22 @@ class IssueFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('jira-issues-list')
+
+
+class CommentFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Comment
+
+    issue = factory.SubFactory(IssueFactory)
+    backend_id = factory.Sequence(lambda n: 'TST-%s' % n)
+
+    @classmethod
+    def get_url(cls, comment=None, action=None):
+        if comment is None:
+            comment = CommentFactory()
+        url = 'http://testserver' + reverse('jira-comments-detail', kwargs={'uuid': comment.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('jira-comments-list')

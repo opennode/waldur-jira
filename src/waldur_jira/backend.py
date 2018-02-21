@@ -387,19 +387,19 @@ class JiraBackend(ServiceBackend):
 
     @reraise_exceptions
     def import_project_issues(self, project):
+        waldur_issues = [i['id'] for i in models.Issue.objects.filter(project=project).values('id')]
+
         for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
             backend_issue._parse_raw(backend_issue.raw)  # XXX: deal with weird issue in JIRA 1.0.4
             key = backend_issue.key
-            try:
-                issue = models.Issue.objects.get(project=project, backend_id=key)
-                self._backend_issue_to_issue(backend_issue, issue)
-                issue.save()
-            except models.Issue.DoesNotExist:
-                issue = models.Issue(project=project,
-                                     backend_id=key,
-                                     state=models.Issue.States.OK)
-                self._backend_issue_to_issue(backend_issue, issue)
-                issue.save()
+            if key in waldur_issues:
+                continue
+
+            issue = models.Issue(project=project,
+                                 backend_id=key,
+                                 state=models.Issue.States.OK)
+            self._backend_issue_to_issue(backend_issue, issue)
+            issue.save()
 
             for backend_comment in self.manager.comments(backend_issue):
                 tmp = issue.comments.model()

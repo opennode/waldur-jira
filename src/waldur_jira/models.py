@@ -144,6 +144,9 @@ class Issue(structure_models.StructureLoggableMixin,
 
     tracker = FieldTracker()
 
+    class Meta(object):
+        unique_together = ('project', 'backend_id')
+
     def get_backend(self):
         return self.project.get_backend()
 
@@ -197,6 +200,9 @@ class Comment(structure_models.StructureLoggableMixin,
     issue = models.ForeignKey(Issue, related_name='comments')
     message = models.TextField(blank=True)
 
+    class Meta(object):
+        unique_together = ('issue', 'backend_id')
+
     def get_backend(self):
         return self.issue.project.get_backend()
 
@@ -245,6 +251,9 @@ class Comment(structure_models.StructureLoggableMixin,
 class Attachment(JiraSubPropertyIssue):
     issue = models.ForeignKey(Issue, related_name='attachments')
     file = models.FileField(upload_to='jira_attachments')
+
+    class Meta(object):
+        unique_together = ('issue', 'backend_id')
 
     def get_backend(self):
         return self.issue.project.get_backend()

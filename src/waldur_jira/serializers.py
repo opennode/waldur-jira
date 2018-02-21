@@ -391,7 +391,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue = None
 
         try:
-            issue = models.Issue.objects.get(backend_id=key)
+            issue = models.Issue.objects.get(project=project, backend_id=key)
         except models.Issue.DoesNotExist as e:
             if event_type != self.Event.CREATE:
                 raise serializers.ValidationError('Issue with id %s does not exist.' % key)
@@ -404,14 +404,14 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 backend.update_issue_from_jira(issue)
 
             if event_type == self.Event.DELETE:
-                backend.issue_delete(issue)
+                backend.delete_issue_from_jira(issue)
 
         if event_type in self.Event.COMMENT_ACTIONS:
             comment = None
 
             try:
                 comment_backend_id = validated_data['comment']['id']
-                comment = models.Comment.objects.get(backend_id=comment_backend_id)
+                comment = models.Comment.objects.get(issue=issue, backend_id=comment_backend_id)
             except KeyError:
                 raise serializers.ValidationError('Request not include fields.comment.id')
             except models.Comment.DoesNotExist as e:
@@ -425,6 +425,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 backend.update_comment_from_jira(comment)
 
             if event_type == self.Event.COMMENT_DELETE:
-                backend.comment_delete(comment)
+                backend.delete_comment_from_jira(comment)
 
         return validated_data
