@@ -333,7 +333,12 @@ class JiraBackend(ServiceBackend):
                          'because it has already been deleted on backend.', issue.backend_id)
 
     def delete_issue_from_jira(self, issue):
-        self.delete_issue(issue)
+        backend_issue = self.get_backend_issue(issue.backend_id)
+        if not backend_issue:
+            issue.delete()
+        else:
+            logger.debug('Skipping issue deletion with key=%s, '
+                         'because it still exists on backend.', issue.backend_id)
 
     @reraise_exceptions
     def create_comment(self, comment):
@@ -389,7 +394,12 @@ class JiraBackend(ServiceBackend):
                          'because it has already been deleted on backend.', comment.id)
 
     def delete_comment_from_jira(self, comment):
-        self.delete_comment(comment)
+        backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
+        if not backend_comment:
+            comment.delete()
+        else:
+            logger.debug('Skipping comment deletion with id=%s, '
+                         'because it still exists on backend.', comment.id)
 
     @reraise_exceptions
     def add_attachment(self, attachment):
