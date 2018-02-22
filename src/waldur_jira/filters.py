@@ -1,4 +1,5 @@
 import django_filters
+from django.db.models import Q
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
@@ -46,6 +47,14 @@ class IssueFilter(django_filters.FilterSet):
     user_uuid = django_filters.UUIDFilter(name='user__uuid')
     key = django_filters.CharFilter(name='backend_id')
     status = django_filters.AllValuesMultipleFilter()
+    sla_ttr_breached = django_filters.BooleanFilter(name='resolution_sla', method='filter_resolution_sla',
+                                                    widget=django_filters.widgets.BooleanWidget())
+
+    def filter_resolution_sla(self, queryset, name, value):
+        if value:
+            return queryset.exclude(Q(resolution_sla__gte=0) | Q(resolution_sla__isnull=True))
+        else:
+            return queryset.filter(resolution_sla__gte=0)
 
     class Meta(object):
         model = models.Issue

@@ -98,6 +98,7 @@ class IssueTypeFactory(factory.DjangoModelFactory):
     settings = factory.SubFactory(JiraServiceSettingsFactory)
     name = factory.Sequence(lambda n: 'issue-type-%s' % n)
     backend_id = factory.Sequence(lambda n: 'issue-type-%s' % n)
+    icon_url = factory.Sequence(lambda n: 'http://icon.com/icon_url-%s' % n)
 
     @classmethod
     def get_url(cls, issue=None, action=None):
@@ -118,6 +119,7 @@ class PriorityFactory(factory.DjangoModelFactory):
     settings = factory.SubFactory(JiraServiceSettingsFactory)
     name = factory.Sequence(lambda n: 'priority-%s' % n)
     backend_id = factory.Sequence(lambda n: 'priority-%s' % n)
+    icon_url = factory.Sequence(lambda n: 'http://icon.com/icon_url-%s' % n)
 
     @classmethod
     def get_url(cls, issue=None, action=None):
@@ -151,3 +153,22 @@ class IssueFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('jira-issues-list')
+
+
+class CommentFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Comment
+
+    issue = factory.SubFactory(IssueFactory)
+    backend_id = factory.Sequence(lambda n: 'TST-%s' % n)
+
+    @classmethod
+    def get_url(cls, comment=None, action=None):
+        if comment is None:
+            comment = CommentFactory()
+        url = 'http://testserver' + reverse('jira-comments-detail', kwargs={'uuid': comment.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('jira-comments-list')

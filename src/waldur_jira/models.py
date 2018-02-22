@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import re
 import urlparse
 
@@ -69,7 +71,7 @@ class Project(structure_models.NewResource):
 
 class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
-    backend_id = models.CharField(max_length=255)
+    backend_id = models.CharField(max_length=255, null=True)
 
     class Permissions(object):
         customer_path = 'project__service_project_link__project__customer'
@@ -140,7 +142,12 @@ class Issue(structure_models.StructureLoggableMixin,
     resource_object_id = models.PositiveIntegerField(blank=True, null=True)
     resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
+    resolution_sla = models.IntegerField(blank=True, null=True)
+
     tracker = FieldTracker()
+
+    class Meta(object):
+        unique_together = ('project', 'backend_id')
 
     def get_backend(self):
         return self.project.get_backend()
@@ -151,7 +158,7 @@ class Issue(structure_models.StructureLoggableMixin,
 
     @property
     def key(self):
-        return self.backend_id
+        return self.backend_id or ''
 
     @property
     def issue_user(self):
@@ -163,7 +170,7 @@ class Issue(structure_models.StructureLoggableMixin,
 
     def get_access_url(self):
         base_url = self.project.service_project_link.service.settings.backend_url
-        return urlparse.urljoin(base_url, 'browse/' + self.backend_id)
+        return urlparse.urljoin(base_url, 'browse/' + (self.backend_id or ''))
 
     def get_log_fields(self):
         return ('uuid', 'issue_user', 'key', 'summary', 'status', 'issue_project')
@@ -176,7 +183,7 @@ class Issue(structure_models.StructureLoggableMixin,
         return self.description
 
     def __str__(self):
-        return '{}: {}'.format(self.backend_id or '???', self.summary)
+        return '{}: {}'.format(self.uuid, self.backend_id or '???')
 
 
 class JiraSubPropertyIssue(JiraPropertyIssue):
@@ -194,6 +201,9 @@ class Comment(structure_models.StructureLoggableMixin,
               JiraSubPropertyIssue):
     issue = models.ForeignKey(Issue, related_name='comments')
     message = models.TextField(blank=True)
+
+    class Meta(object):
+        unique_together = ('issue', 'backend_id')
 
     def get_backend(self):
         return self.issue.project.get_backend()
@@ -237,12 +247,15 @@ class Comment(structure_models.StructureLoggableMixin,
         return self.message
 
     def __str__(self):
-        return '{}: {}'.format(self.issue.backend_id or '???', self.backend_id)
+        return '{}: {}'.format(self.issue.backend_id or '???', self.backend_id or '')
 
 
 class Attachment(JiraSubPropertyIssue):
     issue = models.ForeignKey(Issue, related_name='attachments')
     file = models.FileField(upload_to='jira_attachments')
+
+    class Meta(object):
+        unique_together = ('issue', 'backend_id')
 
     def get_backend(self):
         return self.issue.project.get_backend()
