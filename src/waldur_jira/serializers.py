@@ -353,20 +353,20 @@ class JiraIssueSerializer(serializers.Serializer):
 
 class WebHookReceiverSerializer(serializers.Serializer):
     class Event:
-        CREATE = 1
-        UPDATE = 2
-        DELETE = 4
+        ISSUE_CREATE = 1
+        ISSUE_UPDATE = 2
+        ISSUE_DELETE = 4
         COMMENT_CREATE = 5
         COMMENT_UPDATE = 6
         COMMENT_DELETE = 7
 
-        ISSUE_ACTIONS = (CREATE, UPDATE, DELETE)
+        ISSUE_ACTIONS = (ISSUE_CREATE, ISSUE_UPDATE, ISSUE_DELETE)
         COMMENT_ACTIONS = (COMMENT_CREATE, COMMENT_UPDATE, COMMENT_DELETE)
 
         CHOICES = {
-            ('jira:issue_created', CREATE),
-            ('jira:issue_updated', UPDATE),
-            ('jira:issue_deleted', DELETE),
+            ('jira:issue_created', ISSUE_CREATE),
+            ('jira:issue_updated', ISSUE_UPDATE),
+            ('jira:issue_deleted', ISSUE_DELETE),
             ('comment_created', COMMENT_CREATE),
             ('comment_updated', COMMENT_UPDATE),
             ('comment_deleted', COMMENT_DELETE),
@@ -393,17 +393,17 @@ class WebHookReceiverSerializer(serializers.Serializer):
         try:
             issue = models.Issue.objects.get(project=project, backend_id=key)
         except models.Issue.DoesNotExist as e:
-            if event_type != self.Event.CREATE:
+            if event_type != self.Event.ISSUE_CREATE:
                 raise serializers.ValidationError('Issue with id %s does not exist.' % key)
 
         if event_type in self.Event.ISSUE_ACTIONS:
-            if not issue and event_type == self.Event.CREATE:
+            if not issue and event_type == self.Event.ISSUE_CREATE:
                 backend.create_issue_from_jira(project, key)
 
-            if event_type == self.Event.UPDATE:
+            if event_type == self.Event.ISSUE_UPDATE:
                 backend.update_issue_from_jira(issue)
 
-            if event_type == self.Event.DELETE:
+            if event_type == self.Event.ISSUE_DELETE:
                 backend.delete_issue_from_jira(issue)
 
         if event_type in self.Event.COMMENT_ACTIONS:

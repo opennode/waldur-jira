@@ -1,4 +1,7 @@
+from __future__ import unicode_literals
+
 import re
+import six
 import urlparse
 
 from django.conf import settings
@@ -69,7 +72,7 @@ class Project(structure_models.NewResource):
 
 class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
-    backend_id = models.CharField(max_length=255)
+    backend_id = models.CharField(max_length=255, null=True)
 
     class Permissions(object):
         customer_path = 'project__service_project_link__project__customer'
@@ -156,7 +159,7 @@ class Issue(structure_models.StructureLoggableMixin,
 
     @property
     def key(self):
-        return self.backend_id
+        return self.backend_id or ''
 
     @property
     def issue_user(self):
@@ -168,7 +171,7 @@ class Issue(structure_models.StructureLoggableMixin,
 
     def get_access_url(self):
         base_url = self.project.service_project_link.service.settings.backend_url
-        return urlparse.urljoin(base_url, 'browse/' + self.backend_id)
+        return urlparse.urljoin(base_url, 'browse/' + (self.backend_id or ''))
 
     def get_log_fields(self):
         return ('uuid', 'issue_user', 'key', 'summary', 'status', 'issue_project')
@@ -181,7 +184,9 @@ class Issue(structure_models.StructureLoggableMixin,
         return self.description
 
     def __str__(self):
-        return '{}: {}'.format(self.backend_id or '???', self.summary)
+        # This dont work if self.summary include cyrillic chars
+        #return '{}: {}'.format(self.backend_id or '???', self.summary)
+        return '{}: {}'.format(self.uuid, self.backend_id or '???')
 
 
 class JiraSubPropertyIssue(JiraPropertyIssue):
@@ -245,7 +250,7 @@ class Comment(structure_models.StructureLoggableMixin,
         return self.message
 
     def __str__(self):
-        return '{}: {}'.format(self.issue.backend_id or '???', self.backend_id)
+        return '{}: {}'.format(self.issue.backend_id or '???', self.backend_id or '')
 
 
 class Attachment(JiraSubPropertyIssue):

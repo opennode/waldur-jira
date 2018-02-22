@@ -7,7 +7,7 @@ from jira.utils import json_loads
 from rest_framework import status
 
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.utils import six
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -281,7 +281,8 @@ class JiraBackend(ServiceBackend):
             return
 
         if models.Issue.objects.filter(backend_id=key, project=project).count():
-            # if this issue was created
+            logger.debug('Issue backend_id={}, project={} already exists'.
+                         format(key, project.id))
             return
 
         issue = models.Issue(project=project,
@@ -307,8 +308,9 @@ class JiraBackend(ServiceBackend):
         issue.refresh_from_db()
 
         if issue.modified > start_time:
-            # If while we make backend request this issue was updated in waldur or
-            # from other webhook
+            logger.debug('Issue update {} is broken because while we make backend request '
+                         'this issue was updated in waldur or from other webhook'.
+                         format(issue.id))
             return
 
         self._backend_issue_to_issue(backend_issue, issue)
@@ -335,12 +337,16 @@ class JiraBackend(ServiceBackend):
         if not backend_comment:
             return
 
-        models.Comment.objects.create(
-            issue=issue,
-            backend_id=comment_backend_id,
-            message=models.Comment().clean_message(backend_comment.body),
-            state=models.Comment.States.OK,
-        )
+        try:
+            models.Comment.objects.create(
+                issue=issue,
+                backend_id=comment_backend_id,
+                message=models.Comment().clean_message(backend_comment.body),
+                state=models.Comment.States.OK,
+            )
+        except IntegrityError:
+            logger.debug('Comment issue_id={}, backend_id={} already exists'.
+                         format(issue.id, comment_backend_id))
 
     def update_comment(self, comment):
         backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
@@ -428,7 +434,7 @@ class JiraBackend(ServiceBackend):
                 backend_obj = func(*args, **kwargs)
             except JIRAError as e:
                 if e.status_code == status.HTTP_404_NOT_FOUND:
-                    # This obj has been already deleted on backend
+                    logger.debug('This obj {} has been already deleted on backend'.format(method))
                     return
                 else:
                     raise e
