@@ -55,7 +55,7 @@ class IssueFilter(django_filters.FilterSet):
             return queryset.exclude(Q(resolution_sla__gte=0) | Q(resolution_sla__isnull=True))
         else:
             return queryset.filter(resolution_sla__gte=0)
-    
+
     class Meta(object):
         model = models.Issue
         fields = [

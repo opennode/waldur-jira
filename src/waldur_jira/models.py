@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 import re
-import six
 import urlparse
 
 from django.conf import settings
@@ -184,8 +183,6 @@ class Issue(structure_models.StructureLoggableMixin,
         return self.description
 
     def __str__(self):
-        # This dont work if self.summary include cyrillic chars
-        #return '{}: {}'.format(self.backend_id or '???', self.summary)
         return '{}: {}'.format(self.uuid, self.backend_id or '???')
 
 

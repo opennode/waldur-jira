@@ -1,21 +1,22 @@
 import functools
 import logging
 
-from jira import JIRA, JIRAError
-from jira.client import _get_template_list
-from jira.utils import json_loads
-from rest_framework import status
-
 from django.conf import settings
 from django.db import transaction, IntegrityError
 from django.utils import six
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
+from jira import JIRA, JIRAError
+from jira.client import _get_template_list
+from jira.utils import json_loads
+from rest_framework import status
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
+
 from . import models
+
 
 logger = logging.getLogger(__name__)
 
@@ -278,22 +279,28 @@ class JiraBackend(ServiceBackend):
     def create_issue_from_jira(self, project, key):
         backend_issue = self.get_backend_issue(key)
         if not backend_issue:
+            logger.debug('Unable to create issue with key=%s, '
+                         'because it has already been deleted on backend.', key)
             return
 
-        if models.Issue.objects.filter(backend_id=key, project=project).count():
-            logger.debug('Issue backend_id={}, project={} already exists'.
-                         format(key, project.id))
+        if models.Issue.objects.filter(backend_id=key, project=project).exists():
+            logger.debug('Unable to create issue with key=%s, '
+                         'because it already exists in Waldur.', key)
             return
 
-        issue = models.Issue(project=project,
-                             backend_id=key,
-                             state=models.Issue.States.OK)
+        issue = models.Issue(project=project, backend_id=key)
         self._backend_issue_to_issue(backend_issue, issue)
-        issue.save()
+        try:
+            issue.save()
+        except IntegrityError:
+            logger.debug('Unable to create issue with key=%s, '
+                         'because it has been created in another thread.', key)
 
     def update_issue(self, issue):
         backend_issue = self.get_backend_issue(issue.backend_id)
         if not backend_issue:
+            logger.debug('Unable to update issue with key=%s, '
+                         'because it has already been deleted on backend.', issue.backend_id)
             return
 
         backend_issue.update(summary=issue.summary, description=issue.get_description())
@@ -303,14 +310,15 @@ class JiraBackend(ServiceBackend):
 
         backend_issue = self.get_backend_issue(issue.backend_id)
         if not backend_issue:
+            logger.debug('Unable to update issue with key=%s, '
+                         'because it has already been deleted on backend.', issue.backend_id)
             return
 
         issue.refresh_from_db()
 
         if issue.modified > start_time:
-            logger.debug('Issue update {} is broken because while we make backend request '
-                         'this issue was updated in waldur or from other webhook'.
-                         format(issue.id))
+            logger.debug('Skipping issue update with key=%s, '
+                         'because it has been updated from other thread.', issue.backend_id)
             return
 
         self._backend_issue_to_issue(backend_issue, issue)
@@ -320,11 +328,12 @@ class JiraBackend(ServiceBackend):
         backend_issue = self.get_backend_issue(issue.backend_id)
         if backend_issue:
             backend_issue.delete()
+        else:
+            logger.debug('Unable to delete issue with key=%s, '
+                         'because it has already been deleted on backend.', issue.backend_id)
 
     def delete_issue_from_jira(self, issue):
-        backend_issue = self.get_backend_issue(issue.backend_id)
-        if not backend_issue:
-            issue.delete()
+        self.delete_issue(issue)
 
     @reraise_exceptions
     def create_comment(self, comment):
@@ -335,6 +344,8 @@ class JiraBackend(ServiceBackend):
     def create_comment_from_jira(self, issue, comment_backend_id):
         backend_comment = self.get_backend_comment(issue.backend_id, comment_backend_id)
         if not backend_comment:
+            logger.debug('Unable to create comment with id=%s, '
+                         'because it has already been deleted on backend.', comment_backend_id)
             return
 
         try:
@@ -345,20 +356,24 @@ class JiraBackend(ServiceBackend):
                 state=models.Comment.States.OK,
             )
         except IntegrityError:
-            logger.debug('Comment issue_id={}, backend_id={} already exists'.
-                         format(issue.id, comment_backend_id))
+            logger.debug('Unable to create comment issue_id=%s, backend_id=%s, '
+                         'because it already exists  n Waldur.', issue.id, comment_backend_id)
 
     def update_comment(self, comment):
         backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
         if not backend_comment:
+            logger.debug('Unable to update comment with id=%s, '
+                         'because it has already been deleted on backend.', comment.id)
             return
-        
+
         backend_comment.update(body=comment.prepare_message())
 
     def update_comment_from_jira(self, comment):
         backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
         if not backend_comment:
-            return 
+            logger.debug('Unable to update comment with id=%s, '
+                         'because it has already been deleted on backend.', comment.id)
+            return
 
         comment.message = models.Comment().clean_message(backend_comment.body)
         comment.state = models.Comment.States.OK
@@ -369,16 +384,19 @@ class JiraBackend(ServiceBackend):
         backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
         if backend_comment:
             backend_comment.delete()
+        else:
+            logger.debug('Unable to delete comment with id=%s, '
+                         'because it has already been deleted on backend.', comment.id)
 
     def delete_comment_from_jira(self, comment):
-        backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
-        if not backend_comment:
-            comment.delete()
+        self.delete_comment(comment)
 
     @reraise_exceptions
     def add_attachment(self, attachment):
         backend_issue = self.get_backend_issue(attachment.issue.backend_id)
         if not backend_issue:
+            logger.debug('Unable to add attachment to issue with id=%s, '
+                         'because it has already been deleted on backend.', attachment.issue.id)
             return
 
         backend_attachment = self.manager.add_attachment(backend_issue, attachment.file)
@@ -390,20 +408,23 @@ class JiraBackend(ServiceBackend):
         backend_attachment = self.get_backend_attachment(attachment.backend_id)
         if backend_attachment:
             backend_attachment.delete()
+        else:
+            logger.debug('Unable to remove attachment with id=%s, '
+                         'because it has already been deleted on backend.', attachment.id)
 
     @reraise_exceptions
     def import_project_issues(self, project):
-        waldur_issues = [i['id'] for i in models.Issue.objects.filter(project=project).values('id')]
+        waldur_issues = list(models.Issue.objects.filter(project=project).values_list('id', flat=True))
 
         for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
             backend_issue._parse_raw(backend_issue.raw)  # XXX: deal with weird issue in JIRA 1.0.4
             key = backend_issue.key
             if key in waldur_issues:
+                logger.debug('Skipping import of issue with key=%s, '
+                             'because it already exists in Waldur.', key)
                 continue
 
-            issue = models.Issue(project=project,
-                                 backend_id=key,
-                                 state=models.Issue.States.OK)
+            issue = models.Issue(project=project, backend_id=key)
             self._backend_issue_to_issue(backend_issue, issue)
             issue.save()
 
@@ -434,7 +455,7 @@ class JiraBackend(ServiceBackend):
                 backend_obj = func(*args, **kwargs)
             except JIRAError as e:
                 if e.status_code == status.HTTP_404_NOT_FOUND:
-                    logger.debug('This obj {} has been already deleted on backend'.format(method))
+                    logger.debug('Jira object {} has been already deleted on backend'.format(method))
                     return
                 else:
                     raise e
@@ -443,13 +464,14 @@ class JiraBackend(ServiceBackend):
 
     def _backend_issue_to_issue(self, backend_issue, issue):
         priority = self._get_or_create_priority(issue.project, backend_issue.fields.priority)
-        issue_type = self._get_or_create_type(issue.project, backend_issue.fields.issuetype)
+        issue_type = self._get_or_create_issue_type(issue.project, backend_issue.fields.issuetype)
         resolution_sla = self._get_resolution_sla(backend_issue)
 
         issue.priority = priority
         issue.summary = backend_issue.fields.summary
         issue.description = backend_issue.fields.description or ''
         issue.type = issue_type
+        issue.state = models.Issue.States.OK
         issue.status = backend_issue.fields.status.name or ''
         issue.resolution = (backend_issue.fields.resolution and backend_issue.fields.resolution.name) or ''
         issue.updated_username = backend_issue.fields.creator.name or ''
@@ -466,7 +488,7 @@ class JiraBackend(ServiceBackend):
             priority.save()
         return priority
 
-    def _get_or_create_type(self, project, backend_issue_type):
+    def _get_or_create_issue_type(self, project, backend_issue_type):
         try:
             issue_type = models.IssueType.objects.get(
                 settings=project.service_project_link.service.settings,
