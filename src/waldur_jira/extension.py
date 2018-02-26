@@ -11,6 +11,9 @@ class JiraExtension(WaldurExtension):
             'ISSUE_TEMPLATE': {
                 'RESOURCE_INFO': '\nAffected resource: {resource}\n'
             },
+            'ISSUE': {
+                'resolution_sla_field': 'Time to resolution',
+            }
         }
 
     @staticmethod

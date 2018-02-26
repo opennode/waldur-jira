@@ -59,6 +59,44 @@ class IssueGetTest(BaseTest):
         response = self.client.get(self.issue_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_staff_can_filter_issues_by_statuses(self):
+        self.client.force_authenticate(self.fixture.staff)
+        factories.IssueFactory(
+            project=self.fixture.jira_project,
+            status='OK',
+        )
+        factories.IssueFactory(
+            project=self.fixture.jira_project,
+            status='NOTOK',
+        )
+
+        response = self.client.get(factories.IssueFactory.get_list_url() + "?status=OK")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.client.get(factories.IssueFactory.get_list_url() + "?status=OK&status=NOTOK")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_staff_can_filter_issues_by_priorities(self):
+        self.client.force_authenticate(self.fixture.staff)
+        factories.IssueFactory(
+            project=self.fixture.jira_project,
+            priority=factories.PriorityFactory(name='HIGH')
+        )
+        factories.IssueFactory(
+            project=self.fixture.jira_project,
+            priority=factories.PriorityFactory(name='LOW')
+        )
+
+        response = self.client.get(factories.IssueFactory.get_list_url() + "?priority_name=HIGH")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.client.get(factories.IssueFactory.get_list_url() + "?priority_name=HIGH&priority_name=LOW")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
     def test_non_author_can_not_get_issue(self):
         self.client.force_authenticate(self.non_author)
         response = self.client.get(self.issue_url)
@@ -73,11 +111,33 @@ class IssueCreateBaseTest(BaseTest):
         self.jira_patcher = mock.patch('waldur_jira.backend.JIRA')
         self.jira_mock = self.jira_patcher.start()
         self.create_issue = self.jira_mock().create_issue
+
+        class Object(object):
+            pass
+
+        mock_priority = Object()
+        mock_priority.id = self.fixture.priority.backend_id
+        mock_issue_type = Object()
+        mock_issue_type.id = self.fixture.issue_type.backend_id
+        ttr_field_id = 'customfield_10138'
+        self.ttr_value = 10000
         self.create_issue.return_value = mock.Mock(**{
-            'key': '',
+            'key': 'backend_id',
+            'fields.summary': '',
+            'fields.description': '',
+            'fields.status.name': '',
             'fields.resolution': '',
-            'fields.status.name': ''
+            'fields.creator.name': '',
+            'fields.priority': mock_priority,
+            'fields.issuetype': mock_issue_type,
+            'fields.%s.ongoingCycle.remainingTime.millis' % ttr_field_id: self.ttr_value,
         })
+        self.jira_mock().issue.return_value = self.create_issue.return_value
+        self.jira_mock().fields.return_value = [{
+            'clauseNames': ['Time to resolution'],
+            'id': ttr_field_id,
+            'name': 'Time to resolution'
+        }]
 
     def tearDown(self):
         super(IssueCreateBaseTest, self).tearDown()
@@ -136,6 +196,14 @@ class IssueCreateResourceTest(IssueCreateBaseTest):
 
         response = self.client.post(factories.IssueFactory.get_list_url(), self._get_issue_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_synchronization_resolution_sla(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(factories.IssueFactory.get_list_url(), self._get_issue_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        new_issue = models.Issue.objects.get(backend_id=response.data['key'])
+        self.assertEqual(new_issue.resolution_sla, self.ttr_value/1000)
 
     def _get_issue_payload(self, **kwargs):
         payload = {
@@ -227,3 +295,42 @@ class IssueDeleteTest(BaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(delete_executor.call_count, 0)
+
+
+class IssueFilterTest(BaseTest):
+    def setUp(self):
+        super(IssueFilterTest, self).setUp()
+        self.issue_breached = factories.IssueFactory(
+            project=self.fixture.jira_project,
+            state=models.Issue.States.OK,
+            user=self.author,
+            resolution_sla=-100
+        )
+        self.issue_unbreached = factories.IssueFactory(
+            project=self.fixture.jira_project,
+            state=models.Issue.States.OK,
+            user=self.author,
+            resolution_sla=100
+        )
+
+    def test_filter_sla_ttr_breached_set_to_true(self):
+        response = self._get_response(True)
+        self.assertEqual(len(response.data), 1)
+        self.assertTrue([issue['resolution_sla'] for issue in response.data][0] == -100)
+
+    def test_filter_sla_ttr_breached_set_to_false(self):
+        response = self._get_response(False)
+        self.assertEqual(len(response.data), 1)
+        self.assertTrue([issue['resolution_sla'] for issue in response.data][0] == 100)
+
+    def test_filter_sla_ttr_breached_dont_set(self):
+        response = self._get_response(None)
+        self.assertEqual(len(response.data), 3)
+
+    def _get_response(self, sla_ttr_breached):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(factories.IssueFactory.get_list_url(), {
+            'sla_ttr_breached': sla_ttr_breached  # ttr - Time to resolution
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response
