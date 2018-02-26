@@ -46,7 +46,7 @@ class IssueFilter(django_filters.FilterSet):
     updated_after = django_filters.IsoDateTimeFilter(name="updated", lookup_expr="gte")
     user_uuid = django_filters.UUIDFilter(name='user__uuid')
     key = django_filters.CharFilter(name='backend_id')
-    status = django_filters.AllValuesMultipleFilter()
+    status = core_filters.LooseMultipleChoiceFilter()
     sla_ttr_breached = django_filters.BooleanFilter(name='resolution_sla', method='filter_resolution_sla',
                                                     widget=django_filters.widgets.BooleanWidget())
 
