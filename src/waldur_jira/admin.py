@@ -22,13 +22,13 @@ class ProjectTemplateAdmin(JiraPropertyAdmin):
 class IssueAdmin(structure_admin.BackendModelAdmin):
     list_filter = ('project',)
     list_display = ('backend_id', 'type', 'project', 'status', 'assignee')
-    actions = ['pull',]
+    actions = ['pull']
 
-    def pull(self, request, queryset):
-        for issue in queryset:
-            executors.IssueUpdateFromBackendExecutor.execute(issue)
+    class Pull(core_admin.ExecutorAdminAction):
+        executor = executors.IssueUpdateFromBackendExecutor
+        short_description = _('Pull issue')
 
-    pull.short_description = _('Pull issue')
+    pull = Pull()
 
 
 admin.site.register(models.Priority, JiraPropertyAdmin)
