@@ -477,13 +477,15 @@ class JiraBackend(ServiceBackend):
         issue_type = self._get_or_create_issue_type(issue.project, backend_issue.fields.issuetype)
         resolution_sla = self._get_resolution_sla(backend_issue)
 
+        issue.assignee = backend_issue.fields.assignee
+        issue.creator_name = backend_issue.fields.creator.displayName
         issue.priority = priority
         issue.summary = backend_issue.fields.summary
         issue.description = backend_issue.fields.description or ''
         issue.type = issue_type
-        issue.state = models.Issue.States.OK
         issue.status = backend_issue.fields.status.name or ''
         issue.resolution = (backend_issue.fields.resolution and backend_issue.fields.resolution.name) or ''
+        issue.resolution_date = backend_issue.fields.resolutiondate
         issue.updated_username = backend_issue.fields.creator.name or ''
         issue.resolution_sla = resolution_sla
 

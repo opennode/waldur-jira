@@ -264,7 +264,7 @@ class IssueSerializer(JiraPropertySerializer):
             'jira_project', 'jira_project_uuid', 'jira_project_name',
             'key', 'summary', 'description', 'resolution', 'status',
             'priority', 'priority_name', 'priority_icon_url', 'priority_description',
-            'created', 'updated', 'updated_username',
+            'created', 'updated', 'updated_username', 'assignee', 'creator_name', 'resolution_date',
             'access_url', 'comments', 'resource_type', 'service_settings_state',
             'type', 'type_name', 'type_description', 'type_icon_url',
             'scope', 'scope_type', 'scope_name',
