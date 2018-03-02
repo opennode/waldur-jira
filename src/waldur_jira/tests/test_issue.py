@@ -123,6 +123,9 @@ class IssueCreateBaseTest(BaseTest):
         self.ttr_value = 10000
         self.create_issue.return_value = mock.Mock(**{
             'key': 'backend_id',
+            'fields.assignee.name': '',
+            'fields.creator.displayName': '',
+            'fields.resolutiondate': '',
             'fields.summary': '',
             'fields.description': '',
             'fields.status.name': '',
