@@ -141,6 +141,9 @@ class IssueFactory(factory.DjangoModelFactory):
     priority = factory.SubFactory(PriorityFactory)
     backend_id = factory.Sequence(lambda n: 'TST-%s' % n)
     status = factory.Sequence(lambda n: 'STATUS-%s' % n)
+    assignee = factory.Sequence(lambda n: 'ASSIGNEE-%s' % n)
+    creator_name = factory.Sequence(lambda n: 'CREATOR-%s' % n)
+    resolution_date = factory.Sequence(lambda n: 'RESOLUTION_DATE-%s' % n)
     project = factory.SubFactory(ProjectFactory)
 
     @classmethod
