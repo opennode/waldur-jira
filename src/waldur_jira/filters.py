@@ -65,7 +65,8 @@ class IssueFilter(django_filters.FilterSet):
             'summary',
             'user_uuid',
             'creator_name',
-            'assignee',
+            'assignee_name',
+            'reporter_name',
         ]
         order_by = [
             'created',

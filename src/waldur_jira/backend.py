@@ -288,7 +288,7 @@ class JiraBackend(ServiceBackend):
                          'because it already exists in Waldur.', key)
             return
 
-        issue = models.Issue(project=project, backend_id=key)
+        issue = models.Issue(project=project, backend_id=key, state=models.Issue.States.OK)
         self._backend_issue_to_issue(backend_issue, issue)
         try:
             issue.save()
@@ -434,7 +434,7 @@ class JiraBackend(ServiceBackend):
                              'because it already exists in Waldur.', key)
                 continue
 
-            issue = models.Issue(project=project, backend_id=key)
+            issue = models.Issue(project=project, backend_id=key, state=models.Issue.States.OK)
             self._backend_issue_to_issue(backend_issue, issue)
             issue.save()
 
@@ -477,8 +477,18 @@ class JiraBackend(ServiceBackend):
         issue_type = self._get_or_create_issue_type(issue.project, backend_issue.fields.issuetype)
         resolution_sla = self._get_resolution_sla(backend_issue)
 
-        issue.assignee = backend_issue.fields.assignee.name
+        issue.assignee_name = backend_issue.fields.assignee.displayName
+        issue.assignee_username = backend_issue.fields.assignee.name
+        issue.assignee_email = backend_issue.fields.assignee.emailAddress
+
         issue.creator_name = backend_issue.fields.creator.displayName
+        issue.creator_username = backend_issue.fields.creator.name
+        issue.creator_email = backend_issue.fields.creator.emailAddress
+
+        issue.reporter_name = backend_issue.fields.creator.displayName
+        issue.reporter_username = backend_issue.fields.creator.name
+        issue.reporter_email = backend_issue.fields.creator.emailAddress
+
         issue.priority = priority
         issue.summary = backend_issue.fields.summary
         issue.description = backend_issue.fields.description or ''

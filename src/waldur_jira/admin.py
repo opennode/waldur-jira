@@ -21,7 +21,7 @@ class ProjectTemplateAdmin(JiraPropertyAdmin):
 
 class IssueAdmin(structure_admin.BackendModelAdmin):
     list_filter = ('project',)
-    list_display = ('backend_id', 'type', 'project', 'status', 'assignee')
+    list_display = ('backend_id', 'type', 'project', 'status', 'reporter_name', 'assignee_name')
     actions = ['pull']
 
     class Pull(core_admin.ExecutorAdminAction):
