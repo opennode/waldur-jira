@@ -144,9 +144,9 @@ class JiraPropertySerializer(core_serializers.RestrictedSerializerMixin,
     class Meta(object):
         model = NotImplemented
         fields = (
-            'url', 'uuid', 'user', 'user_uuid', 'user_name', 'user_email', 'state', 'error_message'
+            'url', 'uuid', 'user', 'user_uuid', 'user_name', 'user_email', 'state', 'error_message', 'backend_id'
         )
-        read_only_fields = 'uuid', 'user', 'error_message'
+        read_only_fields = 'uuid', 'user', 'error_message', 'backend_id'
         extra_kwargs = {
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
         }
@@ -183,7 +183,7 @@ class AttachmentSerializer(JiraPropertySerializer):
     class Meta(JiraPropertySerializer.Meta):
         model = models.Attachment
         fields = JiraPropertySerializer.Meta.fields + (
-            'issue', 'issue_uuid', 'issue_key', 'file'
+            'issue', 'issue_uuid', 'issue_key', 'file',
         )
         protected_fields = 'issue',
         extra_kwargs = dict(
@@ -272,9 +272,9 @@ class IssueSerializer(JiraPropertySerializer):
             'access_url', 'comments', 'resource_type', 'service_settings_state',
             'type', 'type_name', 'type_description', 'type_icon_url',
             'scope', 'scope_type', 'scope_name',
-            'parent', 'parent_uuid', 'parent_summary', 'resolution_sla'
+            'parent', 'parent_uuid', 'parent_summary', 'resolution_sla',
         )
-        read_only_fields = 'status', 'resolution', 'updated_username', 'error_message', 'resolution_sla'
+        read_only_fields = 'status', 'resolution', 'updated_username', 'error_message', 'resolution_sla', 'backend_id'
         protected_fields = 'jira_project', 'key', 'type', 'scope',
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'jira-issues-detail'},
@@ -337,6 +337,10 @@ class JiraCommentSerializer(serializers.Serializer):
     id = serializers.CharField()
 
 
+class JiraChangelogSerializer(serializers.Serializer):
+    items = serializers.ListField()
+
+
 class JiraFieldSerializer(serializers.Serializer):
     id = serializers.CharField()
     name = serializers.CharField()
@@ -348,6 +352,7 @@ class JiraIssueProjectSerializer(JiraFieldSerializer):
 
 class JiraIssueFieldsSerializer(serializers.Serializer):
     project = JiraIssueProjectSerializer()
+    comment = serializers.DictField(required=False)
 
 
 class JiraIssueSerializer(serializers.Serializer):
@@ -376,53 +381,115 @@ class WebHookReceiverSerializer(serializers.Serializer):
             ('comment_deleted', COMMENT_DELETE),
         }
 
+    @classmethod
+    def remove_event(cls, events):
+        if isinstance(events, str):
+            events = [events]
+
+        elements = set(filter(lambda e: e[0] in events, cls.Event.CHOICES))
+        cls.Event.CHOICES.difference_update(elements)
+
     webhookEvent = serializers.ChoiceField(choices=Event.CHOICES)
     issue = JiraIssueSerializer()
     comment = JiraCommentSerializer(required=False)
+    changelog = JiraChangelogSerializer(required=False)
+    issue_event_type_name = serializers.CharField(required=False)  # For old Jira's version
+
+    def get_project(self, project_key):
+        try:
+            project = models.Project.objects.get(backend_id=project_key)
+        except models.Project.DoesNotExist as e:
+            raise serializers.ValidationError('Project with id %s does not exist.' % project_key)
+        return project
+
+    def get_issue(self, project, key, create):
+        issue = None
+
+        try:
+            issue = models.Issue.objects.get(project=project, backend_id=key)
+        except models.Issue.DoesNotExist as e:
+            if not create:
+                raise serializers.ValidationError('Issue with id %s does not exist.' % key)
+
+        return issue
+
+    def get_comment(self, issue, key, create):
+        comment = None
+
+        try:
+            comment = models.Comment.objects.get(issue=issue, backend_id=key)
+        except models.Comment.DoesNotExist as e:
+            if not create:
+                raise serializers.ValidationError('Comment with id %s does not exist.' % key)
+
+        return comment
 
     def create(self, validated_data):
         event_type = dict(self.Event.CHOICES).get(validated_data['webhookEvent'])
         fields = validated_data['issue']['fields']
         key = validated_data['issue']['key']
         project_key = fields['project']['key']
-
-        try:
-            project = models.Project.objects.get(backend_id=project_key)
-        except models.Project.DoesNotExist as e:
-            raise serializers.ValidationError('Project with id %s does not exist.' % project_key)
-
+        project = self.get_project(project_key)
         backend = project.get_backend()
-        issue = None
-
-        try:
-            issue = models.Issue.objects.get(project=project, backend_id=key)
-        except models.Issue.DoesNotExist as e:
-            if event_type != self.Event.ISSUE_CREATE:
-                raise serializers.ValidationError('Issue with id %s does not exist.' % key)
+        create_issue = event_type == self.Event.ISSUE_CREATE
+        issue = self.get_issue(project, key, create_issue)
+        
+        if fields.get('comment', False):
+            # The processing of hooks requests for the old and new Jira versions is different.
+            # The main difference is that in the old version, when changing comments,
+            # jira:issue_updated event is sent to the new comment_X event.
+            old_jira = validated_data.get('issue_event_type_name', True)
+        else:
+            old_jira = False
 
         if event_type in self.Event.ISSUE_ACTIONS:
-            if not issue and event_type == self.Event.ISSUE_CREATE:
+            if not issue and create_issue:
                 backend.create_issue_from_jira(project, key)
 
             if event_type == self.Event.ISSUE_UPDATE:
-                backend.update_issue_from_jira(issue)
+                if old_jira:
+                    if old_jira == 'issue_commented':
+                        comment_backend_id = validated_data['comment']['id']
+                        backend.create_comment_from_jira(issue, comment_backend_id)
+
+                    if old_jira == 'issue_comment_edited':
+                        comment_backend_id = validated_data['comment']['id']
+                        comment = self.get_comment(issue, comment_backend_id, False)
+                        backend.update_comment_from_jira(comment)
+
+                    if old_jira == 'issue_comment_deleted':
+                        backend.delete_old_comments(issue)
+
+                    if old_jira == 'issue_updated':
+                        new_attachment = filter(lambda x: x['field'] == 'Attachment',
+                                                validated_data['changelog']['items'])
+                        if new_attachment:
+                            backend.update_attachment_from_jira(issue)
+
+                        backend.update_issue_from_jira(issue)
+                        
+                else:
+                    new_attachment = filter(lambda x: x['fieldId'] == 'attachment',
+                           validated_data['changelog']['items'])
+
+                    if new_attachment:
+                        backend.update_attachment_from_jira(issue)
+                    
+                    backend.update_issue_from_jira(issue)
 
             if event_type == self.Event.ISSUE_DELETE:
                 backend.delete_issue_from_jira(issue)
 
         if event_type in self.Event.COMMENT_ACTIONS:
-            comment = None
-
             try:
                 comment_backend_id = validated_data['comment']['id']
-                comment = models.Comment.objects.get(issue=issue, backend_id=comment_backend_id)
             except KeyError:
                 raise serializers.ValidationError('Request not include fields.comment.id')
-            except models.Comment.DoesNotExist as e:
-                if event_type != self.Event.COMMENT_CREATE:
-                    raise serializers.ValidationError('Comment with id %s does not exist.' % comment_backend_id)
 
-            if not comment and event_type == self.Event.COMMENT_CREATE:
+            create_comment = event_type == self.Event.COMMENT_CREATE
+            comment = self.get_comment(issue, comment_backend_id, create_comment)
+
+            if not comment and create_comment:
                 backend.create_comment_from_jira(issue, comment_backend_id)
 
             if event_type == self.Event.COMMENT_UPDATE:
