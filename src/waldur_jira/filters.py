@@ -64,6 +64,9 @@ class IssueFilter(django_filters.FilterSet):
             'status',
             'summary',
             'user_uuid',
+            'creator_name',
+            'assignee_name',
+            'reporter_name',
         ]
         order_by = [
             'created',

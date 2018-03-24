@@ -52,6 +52,14 @@ class IssueUpdateExecutor(executors.UpdateExecutor):
             serialized_issue, 'update_issue', state_transition='begin_updating')
 
 
+class IssueUpdateFromBackendExecutor(executors.ActionExecutor):
+
+    @classmethod
+    def get_task_signature(cls, issue, serialized_issue, **kwargs):
+        return tasks.BackendMethodTask().si(
+            serialized_issue, 'update_issue_from_jira', state_transition='begin_updating')
+
+
 class IssueDeleteExecutor(executors.DeleteExecutor):
 
     @classmethod
