@@ -255,6 +255,9 @@ class Comment(structure_models.StructureLoggableMixin,
             return template.format(user=self.user, body=self.message)
         return self.message
 
+    def update_message(self, message):
+        self.message = self.clean_message(message)
+
     def __str__(self):
         return '{}: {}'.format(self.issue.backend_id or '???', self.backend_id or '')
 
@@ -262,6 +265,7 @@ class Comment(structure_models.StructureLoggableMixin,
 class Attachment(JiraSubPropertyIssue):
     issue = models.ForeignKey(Issue, related_name='attachments')
     file = models.FileField(upload_to='jira_attachments')
+    thumbnail = models.FileField(upload_to='jira_attachments_thumbnails', blank=True, null=True)
 
     class Meta(object):
         unique_together = ('issue', 'backend_id')
