@@ -7,16 +7,16 @@ from django.utils import six
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
-from jira import JIRA, JIRAError
 from jira.client import _get_template_list
 from jira.utils import json_loads
 from rest_framework import status
 
+from waldur_core.core.models import StateMixin
 from waldur_core.structure import ServiceBackend, ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
 
+from .jira_fix import JIRA, JIRAError
 from . import models
-
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +48,23 @@ class JiraBackend(ServiceBackend):
     """ Waldur interface to JIRA.
         http://pythonhosted.org/jira/
         http://docs.atlassian.com/jira/REST/latest/
+    This class can be overridden in other modules that use JIra.
+    Declare used models of other modules:
+        - model_comment
+        - model_issue
+        - model_attachment
+    And if necessary, overridden methods
+        - _backend_issue_to_issue
+        - _backend_comment_to_comment
+        - _backend_attachment_to_attachment
+
     """
 
-    def __init__(self, settings, project=None, verify=False):
+    model_comment = models.Comment
+    model_issue = models.Issue
+    model_attachment = models.Attachment
 
+    def __init__(self, settings, project=None, verify=False):
         self.settings = settings
         self.project = project
         self.verify = verify
@@ -258,21 +271,8 @@ class JiraBackend(ServiceBackend):
 
     @reraise_exceptions
     def create_issue(self, issue):
-        args = dict(
-            project=issue.project.backend_id,
-            summary=issue.summary,
-            description=issue.get_description(),
-            issuetype={'name': issue.type.name},
-        )
-
-        if issue.priority:
-            args['priority'] = {'name': issue.priority.name}
-
-        if issue.parent:
-            args['parent'] = {'key': issue.parent.backend_id}
-
+        args = self._issue_to_dict(issue)
         backend_issue = self.manager.create_issue(**args)
-        issue.backend_id = backend_issue.key
         self._backend_issue_to_issue(backend_issue, issue)
         issue.save()
 
@@ -283,12 +283,7 @@ class JiraBackend(ServiceBackend):
                          'because it has already been deleted on backend.', key)
             return
 
-        if models.Issue.objects.filter(backend_id=key, project=project).exists():
-            logger.debug('Unable to create issue with key=%s, '
-                         'because it already exists in Waldur.', key)
-            return
-
-        issue = models.Issue(project=project, backend_id=key, state=models.Issue.States.OK)
+        issue = self.model_issue(project=project, backend_id=key, state=StateMixin.States.OK)
         self._backend_issue_to_issue(backend_issue, issue)
         try:
             issue.save()
@@ -353,13 +348,11 @@ class JiraBackend(ServiceBackend):
                          'because it has already been deleted on backend.', comment_backend_id)
             return
 
+        comment = self.model_comment(issue=issue, backend_id=comment_backend_id, state=StateMixin.States.OK)
+        self._backend_comment_to_comment(backend_comment, comment)
+
         try:
-            models.Comment.objects.create(
-                issue=issue,
-                backend_id=comment_backend_id,
-                message=models.Comment().clean_message(backend_comment.body),
-                state=models.Comment.States.OK,
-            )
+            comment.save()
         except IntegrityError:
             logger.debug('Unable to create comment issue_id=%s, backend_id=%s, '
                          'because it already exists  n Waldur.', issue.id, comment_backend_id)
@@ -380,9 +373,9 @@ class JiraBackend(ServiceBackend):
                          'because it has already been deleted on backend.', comment.id)
             return
 
-        comment.message = models.Comment().clean_message(backend_comment.body)
-        comment.state = models.Comment.States.OK
-        comment.save(update_fields=['message', 'state'])
+        comment.state = StateMixin.States.OK
+        self._backend_comment_to_comment(backend_comment, comment)
+        comment.save()
 
     @reraise_exceptions
     def delete_comment(self, comment):
@@ -402,19 +395,19 @@ class JiraBackend(ServiceBackend):
                          'because it still exists on backend.', comment.id)
 
     @reraise_exceptions
-    def add_attachment(self, attachment):
+    def create_attachment(self, attachment):
         backend_issue = self.get_backend_issue(attachment.issue.backend_id)
         if not backend_issue:
             logger.debug('Unable to add attachment to issue with id=%s, '
                          'because it has already been deleted on backend.', attachment.issue.id)
             return
 
-        backend_attachment = self.manager.add_attachment(backend_issue, attachment.file)
+        backend_attachment = self.manager.waldur_add_attachment(backend_issue, attachment.file.path)
         attachment.backend_id = backend_attachment.id
         attachment.save(update_fields=['backend_id'])
 
     @reraise_exceptions
-    def remove_attachment(self, attachment):
+    def delete_attachment(self, attachment):
         backend_attachment = self.get_backend_attachment(attachment.backend_id)
         if backend_attachment:
             backend_attachment.delete()
@@ -424,7 +417,7 @@ class JiraBackend(ServiceBackend):
 
     @reraise_exceptions
     def import_project_issues(self, project):
-        waldur_issues = list(models.Issue.objects.filter(project=project).values_list('id', flat=True))
+        waldur_issues = list(self.model_issue.objects.filter(project=project).values_list('id', flat=True))
 
         for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
             backend_issue._parse_raw(backend_issue.raw)  # XXX: deal with weird issue in JIRA 1.0.4
@@ -434,7 +427,7 @@ class JiraBackend(ServiceBackend):
                              'because it already exists in Waldur.', key)
                 continue
 
-            issue = models.Issue(project=project, backend_id=key, state=models.Issue.States.OK)
+            issue = self.model_issue(project=project, backend_id=key, state=StateMixin.States.OK)
             self._backend_issue_to_issue(backend_issue, issue)
             issue.save()
 
@@ -456,6 +449,14 @@ class JiraBackend(ServiceBackend):
 
     def get_backend_attachment(self, attachment_backend_id):
         return self._get_backend_obj('attachment')(attachment_backend_id)
+
+    def update_attachment_from_jira(self, issue):
+        backend_issue = self.get_backend_issue(issue.backend_id)
+        AttachmentSynchronizer(self, issue, backend_issue).perform_update()
+
+    def delete_old_comments(self, issue):
+        backend_issue = self.get_backend_issue(issue.backend_id)
+        CommentSynchronizer(self, issue, backend_issue).perform_update()
 
     @reraise_exceptions
     def _get_backend_obj(self, method):
@@ -497,6 +498,13 @@ class JiraBackend(ServiceBackend):
         issue.resolution = (backend_issue.fields.resolution and backend_issue.fields.resolution.name) or ''
         issue.resolution_date = backend_issue.fields.resolutiondate
         issue.resolution_sla = resolution_sla
+        issue.backend_id = backend_issue.key
+
+    def _backend_comment_to_comment(self, backend_comment, comment):
+        comment.update_message(backend_comment.body)
+
+    def _backend_attachment_to_attachment(self, backend_attachment, attachment):
+        pass
 
     def _get_or_create_priority(self, project, backend_priority):
         try:
@@ -533,3 +541,196 @@ class JiraBackend(ServiceBackend):
         else:
             resolution_sla = None
         return resolution_sla
+
+    def _issue_to_dict(self, issue):
+        args = dict(
+            project=issue.project.backend_id,
+            summary=issue.summary,
+            description=issue.get_description(),
+            issuetype={'name': issue.type.name},
+        )
+
+        if issue.priority:
+            args['priority'] = {'name': issue.priority.name}
+
+        if issue.parent:
+            args['parent'] = {'key': issue.parent.backend_id}
+
+        return args
+
+    def _get_property(self, object_name, object_id, property_name):
+        url = self.manager._get_url('{0}/{1}/properties/{2}/'.format(object_name, object_id, property_name))
+        response = self.manager._session.get(url)
+        return response.json()
+
+
+class AttachmentSynchronizer(object):
+    def __init__(self, backend, current_issue, backend_issue):
+        self.backend = backend
+        self.current_issue = current_issue
+        self.backend_issue = backend_issue
+
+    def perform_update(self):
+        if self.stale_attachment_ids:
+            self.backend.model_attachment.objects.filter(backend_id__in=self.stale_attachment_ids).delete()
+
+        for attachment_id in self.new_attachment_ids:
+            self._add_attachment(
+                self.current_issue,
+                self.get_backend_attachment(attachment_id)
+            )
+
+        for attachment_id in self.updated_attachments_ids:
+            self._update_attachment(
+                self.current_issue,
+                self.get_backend_attachment(attachment_id),
+                self.get_current_attachment(attachment_id)
+            )
+
+    def get_current_attachment(self, attachment_id):
+        return self.current_attachments_map[attachment_id]
+
+    def get_backend_attachment(self, attachment_id):
+        return self.backend_attachments_map[attachment_id]
+
+    @cached_property
+    def current_attachments_map(self):
+        return {
+            six.text_type(attachment.backend_id): attachment
+            for attachment in self.current_issue.attachments.all()
+        }
+
+    @cached_property
+    def current_attachments_ids(self):
+        return set(self.current_attachments_map.keys())
+
+    @cached_property
+    def backend_attachments_map(self):
+        return {
+            six.text_type(attachment.id): attachment
+            for attachment in self.backend_issue.fields.attachment
+        }
+
+    @cached_property
+    def backend_attachments_ids(self):
+        return set(self.backend_attachments_map.keys())
+
+    @cached_property
+    def stale_attachment_ids(self):
+        return self.current_attachments_ids - self.backend_attachments_ids
+
+    @cached_property
+    def new_attachment_ids(self):
+        return self.backend_attachments_ids - self.current_attachments_ids
+
+    @cached_property
+    def updated_attachments_ids(self):
+        return filter(self._is_attachment_updated, self.backend_attachments_ids)
+
+    def _is_attachment_updated(self, attachment_id):
+        """
+        Attachment is considered updated if its thumbnail just has been created.
+        """
+
+        if not getattr(self.get_backend_attachment(attachment_id), 'thumbnail', False):
+            return False
+
+        if attachment_id not in self.current_attachments_ids:
+            return False
+
+        if self.get_current_attachment(attachment_id).thumbnail:
+            return False
+
+        return True
+
+    def _download_file(self, url):
+        """
+        Download file from URL using secure JIRA session.
+        :return: byte stream
+        :raises: requests.RequestException
+        """
+        session = self.backend.manager._session
+        response = session.get(url)
+        response.raise_for_status()
+        return six.BytesIO(response.content)
+
+    def _add_attachment(self, issue, backend_attachment):
+        attachment = self.backend.model_attachment(issue=issue,
+                                                   backend_id=backend_attachment.id)
+        thumbnail = getattr(backend_attachment, 'thumbnail', False) and getattr(attachment, 'thumbnail', False)
+
+        try:
+            content = self._download_file(backend_attachment.content)
+            if thumbnail:
+                thumbnail_content = self._download_file(backend_attachment.thumbnail)
+
+        except JIRAError as error:
+            logger.error('Unable to load attachment for issue with backend id {backend_id}. Error: {error}).'
+                         .format(backend_id=issue.backend_id, error=error))
+            return
+
+        self.backend._backend_attachment_to_attachment(backend_attachment, attachment)
+        
+        try:
+            attachment.save()
+        except IntegrityError:
+            logger.debug('Unable to create attachment issue_id=%s, backend_id=%s, '
+                         'because it already exists in Waldur.', issue.id, backend_attachment.id)
+
+        attachment.file.save(backend_attachment.filename, content, save=True)
+
+        if thumbnail:
+            attachment.thumbnail.save(backend_attachment.filename, thumbnail_content, save=True)
+
+    def _update_attachment(self, issue, backend_attachment, current_attachment):
+        try:
+            content = self._download_file(backend_attachment.thumbnail)
+        except JIRAError as error:
+            logger.error('Unable to load attachment thumbnail for issue with backend id {backend_id}. Error: {error}).'
+                         .format(backend_id=issue.backend_id, error=error))
+            return
+
+        current_attachment.thumbnail.save(backend_attachment.filename, content, save=True)
+
+
+class CommentSynchronizer(object):
+    def __init__(self, backend, current_issue, backend_issue):
+        self.backend = backend
+        self.current_issue = current_issue
+        self.backend_issue = backend_issue
+
+    def perform_update(self):
+        if self.stale_comments_ids:
+            self.backend.model_comment.objects.filter(backend_id__in=self.stale_comments_ids).delete()
+
+    def get_current_comment(self, comment_id):
+        return self.current_comments_map[comment_id]
+
+    def get_backend_comment(self, comment_id):
+        return self.backend_comments_map[comment_id]
+
+    @cached_property
+    def current_comments_map(self):
+        return {
+            six.text_type(comment.backend_id): comment
+            for comment in self.current_issue.comments.all()
+        }
+
+    @cached_property
+    def current_comments_ids(self):
+        return set(self.current_comments_map.keys())
+
+    @cached_property
+    def backend_comments_map(self):
+        return {
+            six.text_type(comment.id): comment
+            for comment in self.backend_issue.fields.comment.comments
+        }
+
+    @cached_property
+    def backend_comments_ids(self):
+        return set(self.backend_comments_map.keys())
+
+    @cached_property
+    def stale_comments_ids(self):
+        return self.current_comments_ids - self.backend_comments_ids

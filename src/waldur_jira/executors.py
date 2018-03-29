@@ -103,7 +103,7 @@ class AttachmentCreateExecutor(executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, attachment, serialized_attachment, **kwargs):
         return tasks.BackendMethodTask().si(
-            serialized_attachment, 'add_attachment', state_transition='begin_creating')
+            serialized_attachment, 'create_attachment', state_transition='begin_creating')
 
 
 class AttachmentDeleteExecutor(executors.DeleteExecutor):
@@ -112,6 +112,6 @@ class AttachmentDeleteExecutor(executors.DeleteExecutor):
     def get_task_signature(cls, attachment, serialized_attachment, **kwargs):
         if attachment.backend_id:
             return tasks.BackendMethodTask().si(
-                serialized_attachment, 'remove_attachment', state_transition='begin_deleting')
+                serialized_attachment, 'delete_attachment', state_transition='begin_deleting')
         else:
             return tasks.StateTransitionTask().si(serialized_attachment, state_transition='begin_deleting')
