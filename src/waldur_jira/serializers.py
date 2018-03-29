@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import logging
 import re
 from datetime import datetime
+import six
 
 from django.core import validators as django_validators
 from django.utils.translation import ugettext_lazy as _
@@ -385,7 +386,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
     @classmethod
     def remove_event(cls, events):
-        if not isinstance(events, list):
+        if isinstance(events, six.text_type):
             events = [events]
 
         elements = set(filter(lambda e: e[0] in events, cls.Event.CHOICES))
