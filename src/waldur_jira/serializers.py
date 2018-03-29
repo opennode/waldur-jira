@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import logging
 import re
 from datetime import datetime
@@ -383,7 +385,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
     @classmethod
     def remove_event(cls, events):
-        if isinstance(events, str):
+        if not isinstance(events, list):
             events = [events]
 
         elements = set(filter(lambda e: e[0] in events, cls.Event.CHOICES))
