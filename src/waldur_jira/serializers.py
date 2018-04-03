@@ -2,12 +2,11 @@ from __future__ import unicode_literals
 
 import logging
 import re
-from datetime import datetime
-import six
 
 from django.core import validators as django_validators
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
+import six
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers, models as structure_models, SupportedServices
@@ -326,16 +325,6 @@ class IssueSerializer(JiraPropertySerializer):
 # Serializers below are used by webhook only
 #
 
-class UnixTimeField(serializers.IntegerField):
-
-    def to_representation(self, value):
-        try:
-            value = datetime.fromtimestamp(value / 1000)
-        except ValueError as e:
-            raise serializers.ValidationError(e)
-        return value
-
-
 class JiraCommentSerializer(serializers.Serializer):
     id = serializers.CharField()
 
@@ -401,7 +390,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
     def get_project(self, project_key):
         try:
             project = models.Project.objects.get(backend_id=project_key)
-        except models.Project.DoesNotExist as e:
+        except models.Project.DoesNotExist:
             raise serializers.ValidationError('Project with id %s does not exist.' % project_key)
         return project
 
@@ -410,7 +399,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         try:
             issue = models.Issue.objects.get(project=project, backend_id=key)
-        except models.Issue.DoesNotExist as e:
+        except models.Issue.DoesNotExist:
             if not create:
                 raise serializers.ValidationError('Issue with id %s does not exist.' % key)
 
@@ -421,7 +410,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         try:
             comment = models.Comment.objects.get(issue=issue, backend_id=key)
-        except models.Comment.DoesNotExist as e:
+        except models.Comment.DoesNotExist:
             if not create:
                 raise serializers.ValidationError('Comment with id %s does not exist.' % key)
 
@@ -436,7 +425,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         backend = project.get_backend()
         create_issue = event_type == self.Event.ISSUE_CREATE
         issue = self.get_issue(project, key, create_issue)
-        
+
         if fields.get('comment', False):
             # The processing of hooks requests for the old and new Jira versions is different.
             # The main difference is that in the old version, when changing comments,
@@ -470,14 +459,14 @@ class WebHookReceiverSerializer(serializers.Serializer):
                             backend.update_attachment_from_jira(issue)
 
                         backend.update_issue_from_jira(issue)
-                        
+
                 else:
                     new_attachment = filter(lambda x: x['fieldId'] == 'attachment',
-                           validated_data['changelog']['items'])
+                                            validated_data['changelog']['items'])
 
                     if new_attachment:
                         backend.update_attachment_from_jira(issue)
-                    
+
                     backend.update_issue_from_jira(issue)
 
             if event_type == self.Event.ISSUE_DELETE:
