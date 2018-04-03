@@ -670,7 +670,7 @@ class AttachmentSynchronizer(object):
             return
 
         self.backend._backend_attachment_to_attachment(backend_attachment, attachment)
-        
+
         try:
             attachment.save()
         except IntegrityError:

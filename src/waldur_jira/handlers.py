@@ -14,12 +14,12 @@ def log_issue_save(sender, instance, created=False, **kwargs):
     else:
         if instance.tracker.previous('state') == Issue.States.CREATING and \
                 instance.state == Issue.States.OK:
-                event_logger.jira_issue.info(
-                    'Issue {issue_key} has been created.',
-                    event_type='issue_creation_succeeded',
-                    event_context={
-                        'issue': instance,
-                    })
+            event_logger.jira_issue.info(
+                'Issue {issue_key} has been created.',
+                event_type='issue_creation_succeeded',
+                event_context={
+                    'issue': instance,
+                })
         else:
             event_logger.jira_issue.info(
                 'Issue {issue_key} has been updated.',

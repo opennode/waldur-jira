@@ -125,4 +125,5 @@ class WebHookReceiverViewSet(generics.CreateAPIView):
 def get_jira_projects_count(project):
     return project.quotas.get(name='nc_jira_project_count').usage
 
+
 structure_views.ProjectCountersView.register_counter('jira-projects', get_jira_projects_count)

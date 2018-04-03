@@ -73,7 +73,7 @@ class ProjectFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Project
 
-    backend_id=factory.Sequence(lambda n: 'PRJ-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'PRJ-%s' % n)
     name = factory.Sequence(lambda n: 'JIRA project %s' % n)
     service_project_link = factory.SubFactory(JiraServiceProjectLinkFactory)
     template = factory.SubFactory(ProjectTemplateFactory)
