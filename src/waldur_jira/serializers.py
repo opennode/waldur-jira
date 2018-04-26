@@ -164,10 +164,6 @@ class ProjectImportSerializer(ProjectImportableSerializer):
             raise serializers.ValidationError({
                 'backend_id': _("Can't import project with ID %s") % validated_data['backend_id']
             })
-        except Quota.DoesNotExist as e:
-            raise serializers.ValidationError({
-                'service_project_link': e.message
-            })
 
         return project
 
