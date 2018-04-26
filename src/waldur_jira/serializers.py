@@ -214,7 +214,7 @@ class AttachmentSerializer(JiraPropertySerializer):
     class Meta(JiraPropertySerializer.Meta):
         model = models.Attachment
         fields = JiraPropertySerializer.Meta.fields + (
-            'issue', 'issue_uuid', 'issue_key', 'file',
+            'issue', 'issue_uuid', 'issue_key', 'file', 'created',
         )
         protected_fields = 'issue',
         extra_kwargs = dict(
