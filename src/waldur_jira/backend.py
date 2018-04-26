@@ -677,7 +677,8 @@ class AttachmentSynchronizer(object):
 
     def _add_attachment(self, issue, backend_attachment):
         attachment = self.backend.model_attachment(issue=issue,
-                                                   backend_id=backend_attachment.id)
+                                                   backend_id=backend_attachment.id,
+                                                   state=StateMixin.States.OK)
         thumbnail = getattr(backend_attachment, 'thumbnail', False) and getattr(attachment, 'thumbnail', False)
 
         try:
