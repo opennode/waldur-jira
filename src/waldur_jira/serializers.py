@@ -135,9 +135,6 @@ class ProjectImportableSerializer(core_serializers.AugmentedSerializerMixin,
         model_fields = ('name',)
         fields = ('service_project_link', 'backend_id') + model_fields
         read_only_fields = model_fields
-        extra_kwargs = dict(
-            source_volume={'lookup_field': 'uuid', 'view_name': 'jira-spl-detail'},
-        )
 
 
 class ProjectImportSerializer(ProjectImportableSerializer):

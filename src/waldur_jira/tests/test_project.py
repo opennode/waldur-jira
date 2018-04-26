@@ -94,7 +94,7 @@ class ProjectImportableResourcesTest(BaseProjectImportTest):
         self.client.force_authenticate(self.fixture.owner)
 
     @mock.patch('waldur_jira.backend.JiraBackend.get_resources_for_import')
-    def test_importable_volumes_are_returned(self, get_projects_mock):
+    def test_importable_projects_are_returned(self, get_projects_mock):
         backend_projects = self._generate_backend_projects()
         get_projects_mock.return_value = backend_projects
         data = {
@@ -139,13 +139,13 @@ class ProjectImportResourceTest(BaseProjectImportTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     @mock.patch('waldur_jira.backend.JiraBackend.import_project')
-    def test_backend_project_cannot_be_imported_if_it_is_registered_in_waldur(self, import_snapshot_mock):
+    def test_backend_project_cannot_be_imported_if_it_is_registered_in_waldur(self, import_project_mock):
         project = factories.ProjectFactory(service_project_link=self.fixture.service_project_link)
 
         def import_project(backend_id, service_project_link):
             return project
 
-        import_snapshot_mock.side_effect = import_project
+        import_project_mock.side_effect = import_project
 
         payload = {
             'backend_id': project.backend_id,
