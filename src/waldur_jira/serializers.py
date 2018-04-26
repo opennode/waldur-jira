@@ -10,7 +10,6 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
-from waldur_core.quotas.models import Quota
 from waldur_core.structure import serializers as structure_serializers, models as structure_models, SupportedServices
 
 from . import models
