@@ -3,12 +3,14 @@ from __future__ import unicode_literals
 import logging
 import re
 
+import six
 from django.core import validators as django_validators
+from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
-import six
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.quotas.models import Quota
 from waldur_core.structure import serializers as structure_serializers, models as structure_models, SupportedServices
 
 from . import models
@@ -118,24 +120,59 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
         return super(ProjectSerializer, self).create(validated_data)
 
 
-class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer):
+class ProjectImportableSerializer(core_serializers.AugmentedSerializerMixin,
+                                  serializers.HyperlinkedModelSerializer):
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='jira-spl-detail',
+        queryset=models.JiraServiceProjectLink.objects.all(),
+        write_only=True)
 
-    class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
+    def get_filtered_field_names(self):
+        return 'service_project_link',
+
+    class Meta(object):
         model = models.Project
-        view_name = 'jira-projects-detail'
-        fields = structure_serializers.BaseResourceImportSerializer.Meta.fields
+        model_fields = ('name',)
+        fields = ('service_project_link', 'backend_id') + model_fields
+        read_only_fields = model_fields
+        extra_kwargs = dict(
+            source_volume={'lookup_field': 'uuid', 'view_name': 'jira-spl-detail'},
+        )
 
+
+class ProjectImportSerializer(ProjectImportableSerializer):
+    class Meta(ProjectImportableSerializer.Meta):
+        fields = ProjectImportableSerializer.Meta.fields + ('url', 'uuid', 'created')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+    @transaction.atomic
     def create(self, validated_data):
-        backend = self.context['service'].get_backend()
-        try:
-            project = backend.get_project(validated_data['backend_id'])
-        except JiraBackendError:
-            raise serializers.ValidationError(
-                {'backend_id': "Can't find project with ID %s" % validated_data['backend_id']})
+        service_project_link = validated_data['service_project_link']
+        backend_id = validated_data['backend_id']
 
-        validated_data['name'] = project.name
-        validated_data['state'] = models.Project.States.OK
-        return super(ProjectImportSerializer, self).create(validated_data)
+        if models.Project.objects.filter(
+            service_project_link__service__settings=service_project_link.service.settings,
+            backend_id=backend_id
+        ).exists():
+            raise serializers.ValidationError({
+                'backend_id': _('Project has been imported already.')
+            })
+
+        try:
+            backend = service_project_link.get_backend()
+            project = backend.import_project(backend_id, service_project_link)
+        except JiraBackendError:
+            raise serializers.ValidationError({
+                'backend_id': _("Can't import project with ID %s") % validated_data['backend_id']
+            })
+        except Quota.DoesNotExist as e:
+            raise serializers.ValidationError({
+                'service_project_link': e.message
+            })
+
+        return project
 
 
 class JiraPropertySerializer(core_serializers.RestrictedSerializerMixin,

@@ -51,7 +51,7 @@ class Project(structure_models.NewResource):
 
     service_project_link = models.ForeignKey(
         JiraServiceProjectLink, related_name='projects', on_delete=models.PROTECT)
-    template = models.ForeignKey(ProjectTemplate)
+    template = models.ForeignKey(ProjectTemplate, blank=True, null=True)
 
     def get_backend(self):
         return super(Project, self).get_backend(project=self.backend_id)
