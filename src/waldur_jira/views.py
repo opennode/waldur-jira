@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 class JiraServiceViewSet(structure_views.BaseServiceViewSet):
     queryset = models.JiraService.objects.all()
     serializer_class = serializers.ServiceSerializer
-    import_serializer_class = serializers.ProjectImportSerializer
 
 
 class JiraServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
@@ -41,7 +40,7 @@ class ProjectTemplateViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = 'uuid'
 
 
-class ProjectViewSet(structure_views.ResourceViewSet):
+class ProjectViewSet(structure_views.ImportableResourceViewSet):
     queryset = models.Project.objects.all()
     filter_class = filters.ProjectFilter
     serializer_class = serializers.ProjectSerializer
@@ -52,6 +51,10 @@ class ProjectViewSet(structure_views.ResourceViewSet):
     use_atomic_transaction = True
 
     destroy_permissions = [structure_permissions.is_staff]
+
+    importable_resources_backend_method = 'get_resources_for_import'
+    importable_resources_serializer_class = serializers.ProjectImportableSerializer
+    import_resource_serializer_class = serializers.ProjectImportSerializer
 
 
 class IssueTypeViewSet(structure_views.BaseServicePropertyViewSet):
@@ -124,5 +127,6 @@ class WebHookReceiverViewSet(generics.CreateAPIView):
 
 def get_jira_projects_count(project):
     return project.quotas.get(name='nc_jira_project_count').usage
+
 
 structure_views.ProjectCountersView.register_counter('jira-projects', get_jira_projects_count)

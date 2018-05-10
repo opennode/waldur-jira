@@ -73,7 +73,7 @@ class ProjectFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Project
 
-    backend_id=factory.Sequence(lambda n: 'PRJ-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'PRJ-%s' % n)
     name = factory.Sequence(lambda n: 'JIRA project %s' % n)
     service_project_link = factory.SubFactory(JiraServiceProjectLinkFactory)
     template = factory.SubFactory(ProjectTemplateFactory)
@@ -87,8 +87,9 @@ class ProjectFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
     @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('jira-projects-list')
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('jira-projects-list')
+        return url if action is None else url + action + '/'
 
 
 class IssueTypeFactory(factory.DjangoModelFactory):

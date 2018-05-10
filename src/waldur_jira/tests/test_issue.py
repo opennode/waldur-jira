@@ -212,7 +212,7 @@ class IssueCreateResourceTest(IssueCreateBaseTest):
         response = self.client.post(factories.IssueFactory.get_list_url(), self._get_issue_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         new_issue = models.Issue.objects.get(backend_id=response.data['key'])
-        self.assertEqual(new_issue.resolution_sla, self.ttr_value/1000)
+        self.assertEqual(new_issue.resolution_sla, self.ttr_value / 1000)
 
     def _get_issue_payload(self, **kwargs):
         payload = {

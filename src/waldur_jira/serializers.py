@@ -2,10 +2,10 @@ from __future__ import unicode_literals
 
 import logging
 import re
-from datetime import datetime
-import six
 
+import six
 from django.core import validators as django_validators
+from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
@@ -119,24 +119,52 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
         return super(ProjectSerializer, self).create(validated_data)
 
 
-class ProjectImportSerializer(structure_serializers.BaseResourceImportSerializer):
+class ProjectImportableSerializer(core_serializers.AugmentedSerializerMixin,
+                                  serializers.HyperlinkedModelSerializer):
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='jira-spl-detail',
+        queryset=models.JiraServiceProjectLink.objects.all(),
+        write_only=True)
 
-    class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
+    def get_filtered_field_names(self):
+        return 'service_project_link',
+
+    class Meta(object):
         model = models.Project
-        view_name = 'jira-projects-detail'
-        fields = structure_serializers.BaseResourceImportSerializer.Meta.fields
+        model_fields = ('name',)
+        fields = ('service_project_link', 'backend_id') + model_fields
+        read_only_fields = model_fields
 
+
+class ProjectImportSerializer(ProjectImportableSerializer):
+    class Meta(ProjectImportableSerializer.Meta):
+        fields = ProjectImportableSerializer.Meta.fields + ('url', 'uuid', 'created')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+    @transaction.atomic
     def create(self, validated_data):
-        backend = self.context['service'].get_backend()
-        try:
-            project = backend.get_project(validated_data['backend_id'])
-        except JiraBackendError:
-            raise serializers.ValidationError(
-                {'backend_id': "Can't find project with ID %s" % validated_data['backend_id']})
+        service_project_link = validated_data['service_project_link']
+        backend_id = validated_data['backend_id']
 
-        validated_data['name'] = project.name
-        validated_data['state'] = models.Project.States.OK
-        return super(ProjectImportSerializer, self).create(validated_data)
+        if models.Project.objects.filter(
+            service_project_link__service__settings=service_project_link.service.settings,
+            backend_id=backend_id
+        ).exists():
+            raise serializers.ValidationError({
+                'backend_id': _('Project has been imported already.')
+            })
+
+        try:
+            backend = service_project_link.get_backend()
+            project = backend.import_project(backend_id, service_project_link)
+        except JiraBackendError:
+            raise serializers.ValidationError({
+                'backend_id': _("Can't import project with ID %s") % validated_data['backend_id']
+            })
+
+        return project
 
 
 class JiraPropertySerializer(core_serializers.RestrictedSerializerMixin,
@@ -186,7 +214,7 @@ class AttachmentSerializer(JiraPropertySerializer):
     class Meta(JiraPropertySerializer.Meta):
         model = models.Attachment
         fields = JiraPropertySerializer.Meta.fields + (
-            'issue', 'issue_uuid', 'issue_key', 'file',
+            'issue', 'issue_uuid', 'issue_key', 'file', 'created',
         )
         protected_fields = 'issue',
         extra_kwargs = dict(
@@ -326,16 +354,6 @@ class IssueSerializer(JiraPropertySerializer):
 # Serializers below are used by webhook only
 #
 
-class UnixTimeField(serializers.IntegerField):
-
-    def to_representation(self, value):
-        try:
-            value = datetime.fromtimestamp(value / 1000)
-        except ValueError as e:
-            raise serializers.ValidationError(e)
-        return value
-
-
 class JiraCommentSerializer(serializers.Serializer):
     id = serializers.CharField()
 
@@ -401,7 +419,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
     def get_project(self, project_key):
         try:
             project = models.Project.objects.get(backend_id=project_key)
-        except models.Project.DoesNotExist as e:
+        except models.Project.DoesNotExist:
             raise serializers.ValidationError('Project with id %s does not exist.' % project_key)
         return project
 
@@ -410,7 +428,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         try:
             issue = models.Issue.objects.get(project=project, backend_id=key)
-        except models.Issue.DoesNotExist as e:
+        except models.Issue.DoesNotExist:
             if not create:
                 raise serializers.ValidationError('Issue with id %s does not exist.' % key)
 
@@ -421,7 +439,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         try:
             comment = models.Comment.objects.get(issue=issue, backend_id=key)
-        except models.Comment.DoesNotExist as e:
+        except models.Comment.DoesNotExist:
             if not create:
                 raise serializers.ValidationError('Comment with id %s does not exist.' % key)
 
@@ -436,7 +454,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         backend = project.get_backend()
         create_issue = event_type == self.Event.ISSUE_CREATE
         issue = self.get_issue(project, key, create_issue)
-        
+
         if fields.get('comment', False):
             # The processing of hooks requests for the old and new Jira versions is different.
             # The main difference is that in the old version, when changing comments,
@@ -470,14 +488,14 @@ class WebHookReceiverSerializer(serializers.Serializer):
                             backend.update_attachment_from_jira(issue)
 
                         backend.update_issue_from_jira(issue)
-                        
+
                 else:
                     new_attachment = filter(lambda x: x['fieldId'] == 'attachment',
-                           validated_data['changelog']['items'])
+                                            validated_data['changelog']['items'])
 
                     if new_attachment:
                         backend.update_attachment_from_jira(issue)
-                    
+
                     backend.update_issue_from_jira(issue)
 
             if event_type == self.Event.ISSUE_DELETE:

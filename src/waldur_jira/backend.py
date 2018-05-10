@@ -63,6 +63,7 @@ class JiraBackend(ServiceBackend):
     model_comment = models.Comment
     model_issue = models.Issue
     model_attachment = models.Attachment
+    model_project = models.Project
 
     def __init__(self, settings, project=None, verify=False):
         self.settings = settings
@@ -417,10 +418,12 @@ class JiraBackend(ServiceBackend):
 
     @reraise_exceptions
     def import_project_issues(self, project):
-        waldur_issues = list(self.model_issue.objects.filter(project=project).values_list('id', flat=True))
+        waldur_issues = list(self.model_issue.objects.filter(project=project, backend_id__isnull=False).
+                             values_list('backend_id', flat=True))
 
         for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
-            backend_issue._parse_raw(backend_issue.raw)  # XXX: deal with weird issue in JIRA 1.0.4
+            # Otherwise key backend_issue.fields.attachment does not exist
+            backend_issue = self.get_backend_issue(backend_issue.key)
             key = backend_issue.key
             if key in waldur_issues:
                 logger.debug('Skipping import of issue with key=%s, '
@@ -431,6 +434,9 @@ class JiraBackend(ServiceBackend):
             self._backend_issue_to_issue(backend_issue, issue)
             issue.save()
 
+            attachment_synchronizer = AttachmentSynchronizer(self, issue, backend_issue)
+            attachment_synchronizer.perform_update()
+
             for backend_comment in self.manager.comments(backend_issue):
                 tmp = issue.comments.model()
                 tmp.clean_message(backend_comment.body)
@@ -440,6 +446,17 @@ class JiraBackend(ServiceBackend):
                     created=parse_datetime(backend_comment.created),
                     backend_id=backend_comment.id,
                     state=issue.comments.model.States.OK)
+
+    def import_project(self, project_backend_id, service_project_link):
+        backend_project = self.get_project(project_backend_id)
+        project = self.model_project(
+            service_project_link=service_project_link,
+            backend_id=project_backend_id,
+            state=models.Project.States.OK)
+        self._backend_project_to_project(backend_project, project)
+        project.save()
+        self.import_project_issues(project)
+        return project
 
     def get_backend_comment(self, issue_backend_id, comment_backend_id):
         return self._get_backend_obj('comment')(issue_backend_id, comment_backend_id)
@@ -478,17 +495,17 @@ class JiraBackend(ServiceBackend):
         issue_type = self._get_or_create_issue_type(issue.project, backend_issue.fields.issuetype)
         resolution_sla = self._get_resolution_sla(backend_issue)
 
-        issue.assignee_name = (backend_issue.fields.assignee and backend_issue.fields.assignee.displayName) or ''
-        issue.assignee_username = (backend_issue.fields.assignee and backend_issue.fields.assignee.name) or ''
-        issue.assignee_email = (backend_issue.fields.assignee and backend_issue.fields.assignee.emailAddress) or ''
+        for obj in ['assignee', 'creator', 'reporter']:
+            backend_obj = getattr(backend_issue.fields, obj, None)
+            fields = [
+                ['name', 'displayName'],
+                ['username', 'name'],
+                ['email', 'emailAddress'],
+            ]
 
-        issue.creator_name = backend_issue.fields.creator.displayName
-        issue.creator_username = backend_issue.fields.creator.name or ''
-        issue.creator_email = backend_issue.fields.creator.emailAddress or ''
-
-        issue.reporter_name = backend_issue.fields.reporter.displayName
-        issue.reporter_username = backend_issue.fields.reporter.name or ''
-        issue.reporter_email = backend_issue.fields.reporter.emailAddress or ''
+            for waldur_key, backend_key in fields:
+                value = getattr(backend_obj, backend_key, '')
+                setattr(issue, obj + '_' + waldur_key, value)
 
         issue.priority = priority
         issue.summary = backend_issue.fields.summary
@@ -505,6 +522,10 @@ class JiraBackend(ServiceBackend):
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
         pass
+
+    def _backend_project_to_project(self, backend_project, project):
+        project.name = backend_project.name
+        project.description = backend_project.description
 
     def _get_or_create_priority(self, project, backend_priority):
         try:
@@ -656,7 +677,8 @@ class AttachmentSynchronizer(object):
 
     def _add_attachment(self, issue, backend_attachment):
         attachment = self.backend.model_attachment(issue=issue,
-                                                   backend_id=backend_attachment.id)
+                                                   backend_id=backend_attachment.id,
+                                                   state=StateMixin.States.OK)
         thumbnail = getattr(backend_attachment, 'thumbnail', False) and getattr(attachment, 'thumbnail', False)
 
         try:
@@ -670,7 +692,7 @@ class AttachmentSynchronizer(object):
             return
 
         self.backend._backend_attachment_to_attachment(backend_attachment, attachment)
-        
+
         try:
             attachment.save()
         except IntegrityError:
