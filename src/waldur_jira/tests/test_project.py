@@ -2,6 +2,7 @@ import mock
 from ddt import ddt, data
 from rest_framework import test, status
 
+from waldur_jira import models, executors
 from . import factories, fixtures
 
 
@@ -120,14 +121,22 @@ class ProjectImportResourceTest(BaseProjectImportTest):
         self.fixture = fixtures.JiraFixture()
         self.client.force_authenticate(self.fixture.owner)
 
-    @mock.patch('waldur_jira.backend.JiraBackend.import_project')
-    def test_backend_project_is_imported(self, import_project_mock):
-        backend_id = 'backend_id'
+        self.jira_patcher_get_project = mock.patch('waldur_jira.backend.JiraBackend.get_project')
+        self.jira_mock_get_project = self.jira_patcher_get_project.start()
 
-        def import_project(backend_id, service_project_link):
+        def get_project(backend_id):
             return self._generate_backend_projects()[0]
 
-        import_project_mock.side_effect = import_project
+        self.jira_mock_get_project.side_effect = get_project
+
+        self.jira_patcher_executors = mock.patch('waldur_jira.serializers.executors')
+        self.jira_mock_executors = self.jira_patcher_executors.start()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_backend_project_is_imported(self):
+        backend_id = 'backend_id'
 
         payload = {
             'backend_id': backend_id,
@@ -135,17 +144,11 @@ class ProjectImportResourceTest(BaseProjectImportTest):
         }
 
         response = self.client.post(self.url, payload)
-
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(self.jira_mock_executors.ProjectPullExecutor.execute.call_count, 1)
 
-    @mock.patch('waldur_jira.backend.JiraBackend.import_project')
-    def test_backend_project_cannot_be_imported_if_it_is_registered_in_waldur(self, import_project_mock):
+    def test_backend_project_cannot_be_imported_if_it_is_registered_in_waldur(self):
         project = factories.ProjectFactory(service_project_link=self.fixture.service_project_link)
-
-        def import_project(backend_id, service_project_link):
-            return project
-
-        import_project_mock.side_effect = import_project
 
         payload = {
             'backend_id': project.backend_id,
@@ -155,3 +158,38 @@ class ProjectImportResourceTest(BaseProjectImportTest):
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class TasksTest(BaseProjectImportTest):
+
+    def setUp(self):
+        super(TasksTest, self).setUp()
+
+        self.url = factories.ProjectFactory.get_list_url('import_resource')
+        self.fixture = fixtures.JiraFixture()
+        self.client.force_authenticate(self.fixture.owner)
+
+        self.jira_patcher_get_project = mock.patch('waldur_jira.backend.JiraBackend.get_project')
+        self.jira_mock_get_project = self.jira_patcher_get_project.start()
+
+        def get_project(backend_id):
+            return self._generate_backend_projects()[0]
+
+        self.jira_mock_get_project.side_effect = get_project
+
+        self.jira_patcher_get_issues_count = mock.patch('waldur_jira.backend.JiraBackend.get_issues_count')
+        self.jira_mock_get_issues_count = self.jira_patcher_get_issues_count.start()
+        self.jira_mock_get_issues_count.return_value = 1
+
+        self.jira_patcher_import_project_batch = mock.patch('waldur_jira.backend.JiraBackend.import_project_issues')
+        self.jira_mock_import_project_batch = self.jira_patcher_import_project_batch.start()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_import_projects(self):
+        project = factories.ProjectFactory()
+        executors.ProjectPullExecutor.execute(project, async=False)
+        project.refresh_from_db()
+        self.assertEqual(project.state, models.Project.States.OK)
+        self.assertEqual(project.runtime_state, 'success')

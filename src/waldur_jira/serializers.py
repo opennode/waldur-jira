@@ -12,7 +12,7 @@ from rest_framework import serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers, models as structure_models, SupportedServices
 
-from . import models
+from . import models, executors
 from .backend import JiraBackendError
 
 logger = logging.getLogger(__name__)
@@ -102,6 +102,12 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
     template_description = serializers.ReadOnlyField(source='template.description')
     issue_types = IssueTypeSerializer(many=True, read_only=True)
     priorities = PrioritySerializer(many=True, read_only=True)
+    percentage = serializers.SerializerMethodField()
+
+    def get_percentage(self, prj):
+        if prj.state not in (models.Project.States.OK,
+                             models.Project.States.ERRED):
+            return prj.action_details.get('percentage', 0)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Project
@@ -111,7 +117,7 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
         )
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'key', 'template', 'template_name', 'template_description',
-            'issue_types', 'priorities',
+            'issue_types', 'priorities', 'percentage',
         )
 
     def create(self, validated_data):
@@ -138,7 +144,7 @@ class ProjectImportableSerializer(core_serializers.AugmentedSerializerMixin,
 
 class ProjectImportSerializer(ProjectImportableSerializer):
     class Meta(ProjectImportableSerializer.Meta):
-        fields = ProjectImportableSerializer.Meta.fields + ('url', 'uuid', 'created')
+        fields = ProjectImportableSerializer.Meta.fields + ('url', 'uuid', 'created',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
@@ -158,12 +164,13 @@ class ProjectImportSerializer(ProjectImportableSerializer):
 
         try:
             backend = service_project_link.get_backend()
-            project = backend.import_project(backend_id, service_project_link)
+            project = backend.import_project_scheduled(backend_id, service_project_link)
         except JiraBackendError:
             raise serializers.ValidationError({
                 'backend_id': _("Can't import project with ID %s") % validated_data['backend_id']
             })
 
+        executors.ProjectPullExecutor.execute(project)
         return project
 
 

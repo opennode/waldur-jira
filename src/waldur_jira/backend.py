@@ -1,3 +1,5 @@
+from __future__ import unicode_literals, division
+
 import functools
 import logging
 
@@ -419,13 +421,15 @@ class JiraBackend(ServiceBackend):
                          'because it has already been deleted on backend.', attachment.id)
 
     @reraise_exceptions
-    def import_project_issues(self, project):
+    def import_project_issues(self, project, start_at=0, max_results=50, order=None):
         waldur_issues = list(self.model_issue.objects.filter(project=project, backend_id__isnull=False).
                              values_list('backend_id', flat=True))
 
-        for backend_issue in self.manager.search_issues('project=%s' % project.backend_id):
-            # Otherwise key backend_issue.fields.attachment does not exist
-            backend_issue = self.get_backend_issue(backend_issue.key)
+        jql = 'project=%s' % project.backend_id
+        if order:
+            jql += ' ORDER BY %s' % order
+
+        for backend_issue in self.manager.search_issues(jql, startAt=start_at, maxResults=max_results, fields='*all'):
             key = backend_issue.key
             if key in waldur_issues:
                 logger.debug('Skipping import of issue with key=%s, '
@@ -439,7 +443,7 @@ class JiraBackend(ServiceBackend):
             attachment_synchronizer = AttachmentSynchronizer(self, issue, backend_issue)
             attachment_synchronizer.perform_update()
 
-            for backend_comment in self.manager.comments(backend_issue):
+            for backend_comment in backend_issue.fields.comment.comments:
                 tmp = issue.comments.model()
                 tmp.clean_message(backend_comment.body)
                 issue.comments.create(
@@ -449,16 +453,45 @@ class JiraBackend(ServiceBackend):
                     backend_id=backend_comment.id,
                     state=issue.comments.model.States.OK)
 
-    def import_project(self, project_backend_id, service_project_link):
+    def _import_project(self, project_backend_id, service_project_link, state):
         backend_project = self.get_project(project_backend_id)
         project = self.model_project(
             service_project_link=service_project_link,
             backend_id=project_backend_id,
-            state=models.Project.States.OK)
+            state=state)
         self._backend_project_to_project(backend_project, project)
         project.save()
+        return project
+
+    def import_project(self, project_backend_id, service_project_link):
+        project = self._import_project(project_backend_id, service_project_link,
+                                       models.Project.States.OK)
         self.import_project_issues(project)
         return project
+
+    def import_project_scheduled(self, project_backend_id, service_project_link):
+        project = self._import_project(project_backend_id, service_project_link,
+                                       models.Project.States.OK)
+        return project
+
+    def import_project_batch(self, project):
+        max_results = settings.WALDUR_JIRA.get('ISSUE_IMPORT_LIMIT')
+        start_at = project.action_details.get('current_issue', 0)
+        self.import_project_issues(project, order='id', start_at=start_at, max_results=max_results)
+
+        total_added = project.action_details.get('current_issue', 0) + max_results
+
+        if total_added >= project.action_details.get('issues_count', 0):
+            project.action_details['current_issue'] = project.action_details.get('issues_count', 0)
+            project.action_details['percentage'] = 100
+            project.runtime_state = 'success'
+        else:
+            project.action_details['current_issue'] = total_added
+            project.action_details['percentage'] = int((project.action_details['current_issue'] /
+                                                        project.action_details['issues_count']) * 100)
+
+        project.save()
+        return max_results
 
     def get_backend_comment(self, issue_backend_id, comment_backend_id):
         return self._get_backend_obj('comment')(issue_backend_id, comment_backend_id)
@@ -585,6 +618,17 @@ class JiraBackend(ServiceBackend):
         url = self.manager._get_url('{0}/{1}/properties/{2}/'.format(object_name, object_id, property_name))
         response = self.manager._session.get(url)
         return response.json()
+
+    def get_issues_count(self, project_key):
+        base = '{server}/rest/{rest_path}/{rest_api_version}/{path}'
+        page_params = {'jql': 'project=%s' % project_key,
+                       'validateQuery': True,
+                       'startAt': 0,
+                       'fields': [],
+                       'maxResults': 0,
+                       'expand': None}
+        result = self.manager._get_json('search', params=page_params, base=base)
+        return result['total']
 
 
 class AttachmentSynchronizer(object):
