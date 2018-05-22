@@ -1,7 +1,7 @@
 Name: waldur-jira
 Summary: JIRA plugin for Waldur
 Group: Development/Libraries
-Version: 0.8.0
+Version: 0.8.1
 Release: 1.el7
 License: MIT
 Url: http://waldur.com
@@ -35,6 +35,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Tue May 22 2018 Jenkins <jenkins@opennodecloud.com> - 0.8.1-1.el7
+- New upstream release
+
 * Thu May 10 2018 Jenkins <jenkins@opennodecloud.com> - 0.8.0-1.el7
 - New upstream release
 

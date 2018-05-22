@@ -30,6 +30,8 @@ def check_captcha(e):
         return False
     if not hasattr(e.response, 'headers'):
         return False
+    if 'X-Seraph-LoginReason' not in e.response.headers:
+        return False
     return e.response.headers['X-Seraph-LoginReason'] == 'AUTHENTICATED_FAILED'
 
 
