@@ -1,3 +1,5 @@
+from celery import chain
+
 from waldur_core.core import tasks, executors
 
 
@@ -115,3 +117,31 @@ class AttachmentDeleteExecutor(executors.DeleteExecutor):
                 serialized_attachment, 'delete_attachment', state_transition='begin_deleting')
         else:
             return tasks.StateTransitionTask().si(serialized_attachment, state_transition='begin_deleting')
+
+
+class ProjectPullExecutor(executors.ActionExecutor):
+    action = 'Synchronize'
+
+    @classmethod
+    def get_action_details(cls, project, **kwargs):
+        if 'issues_count' not in project.action_details:
+            backend = project.get_backend()
+            issues_count = backend.get_issues_count(project.backend_id)
+            return {'issues_count': issues_count,
+                    'current_issue': 0,
+                    'percentage': 0}
+
+    @classmethod
+    def get_task_signature(cls, project, serialized_project, **kwargs):
+        return chain(
+            tasks.StateTransitionTask().si(
+                serialized_project,
+                state_transition='begin_updating'
+            ),
+            tasks.PollRuntimeStateTask().si(
+                serialized_project,
+                backend_pull_method='import_project_batch',
+                success_state='success',
+                erred_state='error',
+            )
+        )

@@ -13,7 +13,8 @@ class JiraExtension(WaldurExtension):
             },
             'ISSUE': {
                 'resolution_sla_field': 'Time to resolution',
-            }
+            },
+            'ISSUE_IMPORT_LIMIT': 10
         }
 
     @staticmethod
@@ -29,3 +30,13 @@ class JiraExtension(WaldurExtension):
     def rest_urls():
         from .urls import register_in
         return register_in
+
+    # @staticmethod
+    # def celery_tasks():
+    #     return {
+    #         'waldur-import-jira-projects': {
+    #             'task': 'waldur_jira.ImportProjects',
+    #             'schedule': timedelta(minutes=1),
+    #             'args': (),
+    #         },
+    #     }
