@@ -14,6 +14,7 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
 
 
@@ -44,7 +45,7 @@ class ProjectTemplate(core_models.UiDescribableMixin, structure_models.GeneralSe
         return super(ProjectTemplate, cls).get_backend_fields() + ('icon_url', 'description')
 
 
-class Project(structure_models.NewResource):
+class Project(structure_models.NewResource, core_models.RuntimeStateMixin):
 
     class Permissions(structure_models.NewResource.Permissions):
         pass
@@ -52,6 +53,8 @@ class Project(structure_models.NewResource):
     service_project_link = models.ForeignKey(
         JiraServiceProjectLink, related_name='projects', on_delete=models.PROTECT)
     template = models.ForeignKey(ProjectTemplate, blank=True, null=True)
+    action = models.CharField(max_length=50, blank=True)
+    action_details = JSONField(default={})
 
     def get_backend(self):
         return super(Project, self).get_backend(project=self.backend_id)
