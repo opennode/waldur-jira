@@ -90,7 +90,10 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
 
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='jira-spl-detail',
-        queryset=models.JiraServiceProjectLink.objects.all())
+        queryset=models.JiraServiceProjectLink.objects.all(),
+        allow_null=True,
+        required=False,
+    )
 
     template = serializers.HyperlinkedRelatedField(
         view_name='jira-project-templates-detail',
