@@ -54,7 +54,7 @@ class Project(structure_models.NewResource, core_models.RuntimeStateMixin):
         JiraServiceProjectLink, related_name='projects', on_delete=models.PROTECT)
     template = models.ForeignKey(ProjectTemplate, blank=True, null=True)
     action = models.CharField(max_length=50, blank=True)
-    action_details = JSONField(default={})
+    action_details = JSONField(default=dict)
 
     def get_backend(self):
         return super(Project, self).get_backend(project=self.backend_id)
